@@ -1,0 +1,22 @@
+services:
+  rag_assistant:
+    build:
+      context: .
+      dockerfile: Dockerfile.rag
+    ports:
+      - "8002:8002"
+    env_file:
+      - ./tools/rag_assistant/.env
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./.env
+    environment:
+      RAG_TOOL_URL: "http://rag_assistant:8002"
+    depends_on:
+      - rag_assistant

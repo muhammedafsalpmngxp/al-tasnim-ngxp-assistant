@@ -1,0 +1,8 @@
+# RAG document service (build context = repo root so tools/rag_assistant is visible)
+FROM python:3.11-slim
+WORKDIR /app
+COPY tools/rag_assistant/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY tools/rag_assistant/ .
+EXPOSE 8002
+CMD ["python", "-m", "uvicorn", "src.server:app", "--host", "0.0.0.0", "--port", "8002"]
