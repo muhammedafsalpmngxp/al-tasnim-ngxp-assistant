@@ -1,0 +1,2293 @@
+{
+    "database_name": "AppMasterDB",
+    "description": "Well Delivery System Database for Oil & Gas Operations",
+    "tables": [
+        {
+            "table_name": "2026_Well_Delivery_Scope_Well_Type",
+            "table_description": "Master table for all wells. Contains well records with rig assignments, status, location, and lift type information. This is the central entity for well delivery tracking.",
+            "total_rows": "Unknown (sample shows 100 rows with Well_IDs from 27129 to 37797)",
+            "primary_key": "Well_ID",
+            "columns": [
+                {
+                    "column_name": "Sr_No",
+                    "data_type": "smallint",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Sequential serial number for the well record (1, 2, 3, etc.)",
+                    "example_values": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5
+                    ],
+                    "sample_range": "1 to 568"
+                },
+                {
+                    "column_name": "RIG",
+                    "data_type": "tinyint",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Drilling rig number assigned to the well (101, 102, 103, 104, 137, 149, 81, 82, etc.)",
+                    "example_values": [
+                        102,
+                        103,
+                        104,
+                        137,
+                        149,
+                        81,
+                        82,
+                        101
+                    ],
+                    "sample_range": "81 to 151"
+                },
+                {
+                    "column_name": "Well_ID",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Unique 5-digit well identifier. Primary key for this table.",
+                    "example_values": [
+                        31477,
+                        31470,
+                        31486,
+                        31469,
+                        27140
+                    ],
+                    "sample_range": "10205 to 37797"
+                },
+                {
+                    "column_name": "Latest_ROL",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Latest Rig on Location date - when the rig arrived at the well site. Format: DD-MMM-YY (e.g., 14-Jul-25)",
+                    "example_values": [
+                        "14-Jul-25",
+                        "26-Jul-25",
+                        "2-Aug-25",
+                        "4-Aug-25"
+                    ],
+                    "sample_range": "4-Aug-25 to 27-Apr-26"
+                },
+                {
+                    "column_name": "Latest_Rif_Off",
+                    "data_type": "date",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Latest Rig Off date - when the rig leaves the well site. Format: YYYY-MM-DD",
+                    "example_values": [
+                        "2025-07-26",
+                        "2025-08-07",
+                        "2025-08-17",
+                        "2025-08-16"
+                    ],
+                    "sample_range": "2025-07-26 to 2026-05-01"
+                },
+                {
+                    "column_name": "Well_Category",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Category of well. Values: SCR/EMOC (Scoping Complete), New Well - KPI, Non KPI Well, NULL, etc.",
+                    "example_values": [
+                        "SCR/EMOC",
+                        "New Well - KPI",
+                        "Non KPI Well"
+                    ],
+                    "unique_values": 4
+                },
+                {
+                    "column_name": "Station_Code",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Location station code. Values: NIM (Nimr), SSFD (South), SSFDP, MALRTQ (Marmul), etc.",
+                    "example_values": [
+                        "NIM",
+                        "SSFD",
+                        "SSFDP",
+                        "MALRTQ"
+                    ],
+                    "unique_values": 3
+                },
+                {
+                    "column_name": "Field",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Oil field name where well is located. Values: NIMR E, NIMR A, AL BURJ, RAKID SOUTH, AMIN, etc.",
+                    "example_values": [
+                        "NIMR E",
+                        "NIMR A",
+                        "RAKID SOUTH",
+                        "AL BURJ",
+                        "AMIN"
+                    ],
+                    "unique_values": 11
+                },
+                {
+                    "column_name": "Well_Location_Name",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Full descriptive location name of the well.",
+                    "example_values": [
+                        "NIMR_NMR E_NO25_220703_11",
+                        "NMR E_NO25_220703_4",
+                        "RKDS_2026_OP_LOC3"
+                    ],
+                    "unique_values": 95
+                },
+                {
+                    "column_name": "Lift_type",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Artificial lift type. Values: PI (Progressive Injection), ESP (Electrical Submersible Pump), PCP (Progressive Cavity Pump), BP (Beam Pump), WI (Water Injector), OP (Oil Producer), WSW, DWI",
+                    "example_values": [
+                        "PI",
+                        "ESP",
+                        "PCP",
+                        "BP",
+                        "WI",
+                        "OP"
+                    ],
+                    "unique_values": 8
+                }
+            ],
+            "common_queries": [
+                "SELECT * FROM [2026_Well_Delivery_Scope_Well_Type] WHERE Well_ID = 31477",
+                "SELECT Well_ID, Well_Category, Field, Lift_type FROM [2026_Well_Delivery_Scope_Well_Type] WHERE Field = 'NIMR E'",
+                "SELECT COUNT(*) FROM [2026_Well_Delivery_Scope_Well_Type] WHERE Well_Category = 'SCR/EMOC'"
+            ],
+            "relationships": {
+                "foreign_keys": [
+                    {
+                        "column": "Well_ID",
+                        "references": "ActivityTaskPlan.Well_ID"
+                    },
+                    {
+                        "column": "Well_ID",
+                        "references": "WMR.pdo_well_id"
+                    },
+                    {
+                        "column": "RIG",
+                        "references": "SAP_DRILLING_SEQUENCE.Work_Center"
+                    }
+                ]
+            }
+        },
+        {
+            "table_name": "ActivityTaskPlan",
+            "table_description": "Detailed task breakdown for every well with 38 columns and millions of rows. Tracks all activities from start to finish with WBS hierarchy, progress, manhours, and dates. Most important operational table.",
+            "total_rows": "Unknown (sample shows 100 rows with row_id from 1 to 100)",
+            "primary_key": "row_id",
+            "columns": [
+                {
+                    "column_name": "row_id",
+                    "data_type": "bigint",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": true,
+                    "description": "Unique primary key identifier for each task",
+                    "example_values": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5
+                    ],
+                    "sample_range": "1 to 56,845,718+"
+                },
+                {
+                    "column_name": "source_id",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "External source system identifier for the task. Usually NULL.",
+                    "example_values": [
+                        "NULL"
+                    ],
+                    "null_percentage": 100
+                },
+                {
+                    "column_name": "Data",
+                    "data_type": "nvarchar",
+                    "max_length": -1 (max),
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Additional task data stored as text. Often empty string.",
+                    "example_values": [
+                        "",
+                        "additional data"
+                    ],
+                    "unique_values": 7
+                },
+                {
+                    "column_name": "ancestor",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Hierarchical path showing parent relationships. Format: comma-separated IDs (e.g., '143508,143804')",
+                    "example_values": [
+                        "143508",
+                        "143804,143508",
+                        "143806,143804,143508"
+                    ],
+                    "unique_values": 31
+                },
+                {
+                    "column_name": "duration",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Planned duration of the task in days. Usually '1.0' for most tasks.",
+                    "example_values": [
+                        "1.0"
+                    ],
+                    "unique_values": 12
+                },
+                {
+                    "column_name": "progress",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Current completion percentage. Values: 0.0 (Not Started), 0.85, 1.0 (Complete), etc.",
+                    "example_values": [
+                        "0.0",
+                        "0.85",
+                        "1.0"
+                    ],
+                    "unique_values": 9
+                },
+                {
+                    "column_name": "crew_uid",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Unique identifier of assigned crew. Often empty string.",
+                    "example_values": [
+                        "",
+                        "Crew123"
+                    ],
+                    "unique_values": 5
+                },
+                {
+                    "column_name": "crew_type",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Type of crew needed for the task.",
+                    "example_values": [
+                        "",
+                        "Type A"
+                    ],
+                    "unique_values": 3
+                },
+                {
+                    "column_name": "qty",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Planned quantity for the task.",
+                    "example_values": [
+                        "0.0"
+                    ],
+                    "unique_values": 20
+                },
+                {
+                    "column_name": "manhours",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Planned manhours required for the task.",
+                    "example_values": [
+                        "210.1392461655454",
+                        "141.93738525285454",
+                        "68.20186091269083",
+                        "0.0"
+                    ],
+                    "unique_values": 31
+                },
+                {
+                    "column_name": "weightage",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Weight/importance of task in overall project progress.",
+                    "example_values": [
+                        "0.0",
+                        "0.85",
+                        "0.7",
+                        "0.15"
+                    ],
+                    "unique_values": 9
+                },
+                {
+                    "column_name": "parent",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Parent task row_id for hierarchical structure. Format: '143508.0'",
+                    "example_values": [
+                        "143508.0",
+                        "143804.0",
+                        "143806.0"
+                    ],
+                    "unique_values": 31
+                },
+                {
+                    "column_name": "start_date",
+                    "data_type": "datetime2",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Scheduled start date of the task. Format: YYYY-MM-DD",
+                    "example_values": [
+                        "2026-01-04 00:00:00"
+                    ],
+                    "sample_range": "2026-01-04 to 2026-01-19"
+                },
+                {
+                    "column_name": "end_date",
+                    "data_type": "datetime2",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Scheduled end date of the task. Format: YYYY-MM-DD",
+                    "example_values": [
+                        "2026-03-15 00:00:00",
+                        "2026-02-16 00:00:00",
+                        "2026-01-29 00:00:00"
+                    ],
+                    "sample_range": "2026-01-29 to 2026-03-15"
+                },
+                {
+                    "column_name": "target_start",
+                    "data_type": "datetime2",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Original target start date from plan",
+                    "example_values": [
+                        "2025-12-11 00:00:00",
+                        "2026-01-15 00:00:00",
+                        "2026-01-10 00:00:00"
+                    ]
+                },
+                {
+                    "column_name": "target_end",
+                    "data_type": "datetime2",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Original target end date from plan",
+                    "example_values": [
+                        "2026-09-13 00:00:00",
+                        "2026-08-17 00:00:00",
+                        "2026-01-27 00:00:00"
+                    ]
+                },
+                {
+                    "column_name": "actual_start",
+                    "data_type": "datetime2",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Actual date when work started. '1900-01-01' indicates not started.",
+                    "example_values": [
+                        "2025-12-11 00:00:00",
+                        "1900-01-01 00:00:00",
+                        "2026-01-10 00:00:00"
+                    ]
+                },
+                {
+                    "column_name": "actual_end",
+                    "data_type": "datetime2",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Actual date when work was completed. '1900-01-01' indicates not completed.",
+                    "example_values": [
+                        "2026-01-27 00:00:00",
+                        "1900-01-01 00:00:00"
+                    ]
+                },
+                {
+                    "column_name": "qtyactual",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Actual quantity completed",
+                    "example_values": [
+                        "0.0",
+                        "252.69",
+                        "149.25",
+                        "103.44"
+                    ]
+                },
+                {
+                    "column_name": "qtyforacst",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Forecasted quantity for the task",
+                    "example_values": [
+                        "0.0"
+                    ]
+                },
+                {
+                    "column_name": "manhoursactual",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Actual manhours spent on the task",
+                    "example_values": [
+                        "252.69",
+                        "149.25",
+                        "103.44",
+                        "0.0"
+                    ]
+                },
+                {
+                    "column_name": "manhourforacst",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Forecasted manhours for the task",
+                    "example_values": [
+                        "210.1392461655454",
+                        "141.93738525285454",
+                        "68.20186091269083",
+                        "0.0"
+                    ]
+                },
+                {
+                    "column_name": "code",
+                    "data_type": "nvarchar",
+                    "max_length": 200,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Work Breakdown Structure (WBS) code. Format: PW1.3, PW1.3.5.6, etc.",
+                    "example_values": [
+                        "PW1.3",
+                        "PW1.3.0",
+                        "PW1.3.5",
+                        "PW1.3.5.6",
+                        "PW1.3.5.15"
+                    ]
+                },
+                {
+                    "column_name": "text",
+                    "data_type": "nvarchar",
+                    "max_length": -1 (max),
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Task description/name (e.g., 'W33151', 'Milestone', 'Location', 'Pad Construction')",
+                    "example_values": [
+                        "W33151",
+                        "Milestone",
+                        "Location",
+                        "Pad Construction",
+                        "Cellar Construction"
+                    ]
+                },
+                {
+                    "column_name": "type",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Task type. Values: W = Work, M = Milestone",
+                    "example_values": [
+                        "W",
+                        "M"
+                    ]
+                },
+                {
+                    "column_name": "schedule_id",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Schedule identifier",
+                    "example_values": [
+                        "355"
+                    ]
+                },
+                {
+                    "column_name": "project_id",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Project GUID identifier",
+                    "example_values": [
+                        "8c9c6b42-7a12-4eb3-935b-fc0437e7f33f"
+                    ]
+                },
+                {
+                    "column_name": "task_assignee",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Person assigned to the task (email)",
+                    "example_values": [
+                        ""
+                    ]
+                },
+                {
+                    "column_name": "supervisor_email",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Supervisor email for task oversight",
+                    "example_values": [
+                        ""
+                    ]
+                },
+                {
+                    "column_name": "attributes",
+                    "data_type": "nvarchar",
+                    "max_length": -1 (max),
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "JSON attributes. Contains suspension/resume status.",
+                    "example_values": [
+                        "[]",
+                        "[{\"id\":\"0924918b-130c-4971-a11e-be9c5f15185b\",\"name\":\"Well Suspension\",\"value\":\"Resume\"}]"
+                    ]
+                },
+                {
+                    "column_name": "remaining_duration",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Days remaining to complete the task",
+                    "example_values": [
+                        "0.0",
+                        "1.0"
+                    ]
+                },
+                {
+                    "column_name": "Resume_Suspend",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Task suspension status (Resume/Suspend)",
+                    "example_values": [
+                        "NULL"
+                    ]
+                },
+                {
+                    "column_name": "data_nonprod",
+                    "data_type": "nvarchar",
+                    "max_length": -1 (max),
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Non-production related data",
+                    "example_values": [
+                        "NULL"
+                    ]
+                },
+                {
+                    "column_name": "created_at",
+                    "data_type": "datetime2",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Record creation timestamp",
+                    "example_values": [
+                        "NULL"
+                    ]
+                },
+                {
+                    "column_name": "updated_at",
+                    "data_type": "datetime2",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Record update timestamp",
+                    "example_values": [
+                        "NULL"
+                    ]
+                },
+                {
+                    "column_name": "Well_ID",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Associated well identifier (foreign key to Well master)",
+                    "example_values": [
+                        "33151"
+                    ]
+                },
+                {
+                    "column_name": "Parent_WBS",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Parent Work Breakdown Structure reference",
+                    "example_values": [
+                        "W33151"
+                    ]
+                },
+                {
+                    "column_name": "Time_Stamp",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Data ingestion timestamp",
+                    "example_values": [
+                        "2026-02-15 01:36:30 -0800"
+                    ]
+                }
+            ],
+            "common_queries": [
+                "SELECT code, text, progress, start_date, end_date, manhoursactual FROM ActivityTaskPlan WHERE Well_ID = '33151' ORDER BY row_id",
+                "SELECT code, text, progress, parent, ancestor FROM ActivityTaskPlan WHERE Well_ID = '33151' AND type = 'W'",
+                "SELECT COUNT(*) FROM ActivityTaskPlan WHERE Well_ID = '33151'"
+            ],
+            "relationships": {
+                "foreign_keys": [
+                    {
+                        "column": "Well_ID",
+                        "references": "2026_Well_Delivery_Scope_Well_Type.Well_ID"
+                    }
+                ]
+            }
+        },
+        {
+            "table_name": "WMR",
+            "table_description": "Well Monitoring Report. Comprehensive progress tracking dashboard with 128 columns covering location preparation, engineering, construction, and commissioning metrics.",
+            "total_rows": "Unknown (sample shows 100 rows with sl_no = 1.0)",
+            "primary_key": "sl_no",
+            "columns": [
+                {
+                    "column_name": "sl_no",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Serial number in the report. Usually '1.0'",
+                    "example_values": [
+                        "1.0"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "rig_no",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Drilling rig number. Values: SWERIG81, SWER103, SWER101, SWER137, SWER102, etc.",
+                    "example_values": [
+                        "SWERIG81",
+                        "SWER103",
+                        "SWER101",
+                        "SWER137",
+                        "SWER102"
+                    ],
+                    "unique_values": 10
+                },
+                {
+                    "column_name": "well_location",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Physical location of the well",
+                    "example_values": [
+                        "RAKDS_EF_2026_OP_LOC2",
+                        "AMIN_25869179_OP10",
+                        "AMIN_1673188_OP20"
+                    ],
+                    "unique_values": 98
+                },
+                {
+                    "column_name": "well_name_after_spud",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Well name after drilling spud",
+                    "example_values": [
+                        "RAKDS_EF_2026_OP_LOC2",
+                        "AMIN_25869179_OP10",
+                        "AMIN_1673188_OP20"
+                    ],
+                    "unique_values": 98
+                },
+                {
+                    "column_name": "pdo_well_id",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "PDO (Petroleum Development Oman) well identifier",
+                    "example_values": [
+                        "36343",
+                        "30854",
+                        "36074",
+                        "30759"
+                    ],
+                    "unique_values": 98
+                },
+                {
+                    "column_name": "well_type",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Type of well. Values: PCP, ESP, BP, WI, NULL",
+                    "example_values": [
+                        "PCP",
+                        "ESP",
+                        "BP",
+                        "WI"
+                    ],
+                    "null_percentage": 24,
+                    "unique_values": 5
+                },
+                {
+                    "column_name": "northing",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "UTM northing coordinate",
+                    "example_values": [
+                        "2004300.97",
+                        "2033779.42"
+                    ],
+                    "null_percentage": 11
+                },
+                {
+                    "column_name": "easting",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "UTM easting coordinate",
+                    "example_values": [
+                        "355781.05",
+                        "366991.86"
+                    ],
+                    "null_percentage": 11
+                },
+                {
+                    "column_name": "locationdd",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Location document descriptor",
+                    "example_values": [
+                        "C.AA.NIM.DD.03.WLC.GENRL"
+                    ],
+                    "null_percentage": 95
+                },
+                {
+                    "column_name": "flow_linedl",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Flow line document descriptor",
+                    "example_values": [
+                        "C.AA.SEF.DL.03.2510",
+                        "C.AA.NIM.DL.04.FLO.30854"
+                    ],
+                    "null_percentage": 12,
+                    "unique_values": 51
+                },
+                {
+                    "column_name": "location_po_no",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Location Purchase Order number",
+                    "example_values": [
+                        "4501024216",
+                        "4501029843/10"
+                    ]
+                },
+                {
+                    "column_name": "location_po_recvd_date",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Purchase Order received date",
+                    "example_values": [
+                        "18.12.2025",
+                        "2026-03-06"
+                    ]
+                },
+                {
+                    "column_name": "location_-_purpose_value",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Purpose value for location",
+                    "example_values": [
+                        "NULL"
+                    ]
+                },
+                {
+                    "column_name": "last_week_exp.rig_on_location_sap_data",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Previous week's expected rig on location date",
+                    "example_values": [
+                        "2026-02-10",
+                        "2026-02-16"
+                    ]
+                },
+                {
+                    "column_name": "latest_exp.rig_on_location_sap_data",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Latest expected rig on location date",
+                    "example_values": [
+                        "2026-02-10",
+                        "2026-02-16",
+                        "2026-03-26"
+                    ]
+                },
+                {
+                    "column_name": "exp.rig_off_location_sap_data",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Expected rig off location date",
+                    "example_values": [
+                        "2026-02-18",
+                        "2026-02-26",
+                        "2026-04-05"
+                    ]
+                },
+                {
+                    "column_name": "over_all_progress_percentages",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Overall progress percentage",
+                    "example_values": [
+                        "0.81",
+                        "0.69",
+                        "0.49"
+                    ]
+                },
+                {
+                    "column_name": "access_road_5",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Access road progress (5% weight)",
+                    "example_values": [
+                        "1.0",
+                        "0",
+                        "0.0"
+                    ]
+                },
+                {
+                    "column_name": "earth_work_60",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Earth work progress (60% weight)",
+                    "example_values": [
+                        "1.0",
+                        "0",
+                        "0.0"
+                    ]
+                },
+                {
+                    "column_name": "cellar_20",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Cellar progress (20% weight)",
+                    "example_values": [
+                        "1.0",
+                        "0.0"
+                    ]
+                },
+                {
+                    "column_name": "project_id",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Project ID",
+                    "example_values": [
+                        "8c9c6b42-7a12-4eb3-935b-fc0437e7f33f"
+                    ]
+                },
+                {
+                    "column_name": "Week_Number",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Week number of report",
+                    "example_values": [
+                        "2026-02-05"
+                    ]
+                }
+            ],
+            "common_queries": [
+                "SELECT pdo_well_id, over_all_progress_percentages, actual_start_date, actual_rig_on_date FROM WMR WHERE pdo_well_id = '33151'",
+                "SELECT rig_no, well_location, over_all_progress_percentages FROM WMR WHERE over_all_progress_percentages > '0.5'",
+                "SELECT rig_no, COUNT(*) FROM WMR GROUP BY rig_no"
+            ],
+            "relationships": {
+                "foreign_keys": [
+                    {
+                        "column": "pdo_well_id",
+                        "references": "2026_Well_Delivery_Scope_Well_Type.Well_ID"
+                    },
+                    {
+                        "column": "rig_no",
+                        "references": "SAP_DRILLING_SEQUENCE.Work_Center"
+                    }
+                ]
+            }
+        },
+        {
+            "table_name": "Employee",
+            "table_description": "Employee master data. Contains personal information, status, supervisor hierarchy, and company assignments.",
+            "total_rows": "Unknown (sample shows 100 rows with id from 4809 to 4908)",
+            "primary_key": "id",
+            "columns": [
+                {
+                    "column_name": "id",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Unique employee identifier (primary key)",
+                    "example_values": [
+                        4809,
+                        4810,
+                        4811,
+                        4812,
+                        4813
+                    ],
+                    "sample_range": "4809 to 5974+"
+                },
+                {
+                    "column_name": "UId",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Unique external identifier for the employee",
+                    "example_values": [
+                        "113526",
+                        "113611",
+                        "114729",
+                        "116653"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Name",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Full name of the employee",
+                    "example_values": [
+                        "KAMAL AHMAD",
+                        "BALAKRISHNAN THIAGARAJAN",
+                        "SIBY THANNICKAL PETER"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Email",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Email address of the employee",
+                    "example_values": [
+                        "mohammad.hedayatullah@altasnim.com",
+                        "rajesh.116864@ong.altasnim.com"
+                    ],
+                    "null_percentage": 90
+                },
+                {
+                    "column_name": "Status",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Employee status. Value: 'Active'",
+                    "example_values": [
+                        "Active"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "Supervisor",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Supervisor employee ID. Usually 0",
+                    "example_values": [
+                        0
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "Account",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Account GUID",
+                    "example_values": [
+                        "367f58ab-d5e4-43ec-b5ff-ddc27426db5d"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "EmployeeType",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Employee type identifier",
+                    "example_values": [
+                        1855,
+                        1867
+                    ],
+                    "unique_values": 7
+                },
+                {
+                    "column_name": "Company",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Company identifier",
+                    "example_values": [
+                        "39"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "Manager",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Manager employee ID",
+                    "example_values": [
+                        "NULL"
+                    ],
+                    "null_percentage": 100
+                },
+                {
+                    "column_name": "Location",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Location code",
+                    "example_values": [
+                        "53",
+                        "55",
+                        "56"
+                    ],
+                    "unique_values": 3
+                }
+            ],
+            "common_queries": [
+                "SELECT id, Name, Email, Status FROM Employee WHERE Name LIKE '%KAMAL%'",
+                "SELECT COUNT(*) FROM Employee WHERE Status = 'Active'",
+                "SELECT * FROM Employee WHERE EmployeeType = 1855"
+            ]
+        },
+        {
+            "table_name": "crews",
+            "table_description": "Crew master data. Defines crew codes, types, supervisors, and employee/equipment assignments.",
+            "total_rows": "Unknown (sample shows 100 rows with ID from 4685 to 9945)",
+            "primary_key": "ID",
+            "columns": [
+                {
+                    "column_name": "ID",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Unique crew identifier",
+                    "example_values": [
+                        "4685",
+                        "1196",
+                        "201",
+                        "6660"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Code",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Crew code. Format: LOCATION_TYPE_NUMBER (e.g., HIT_CSE0302_4, MES_CGD0602_09)",
+                    "example_values": [
+                        "HIT_CSE0302_4",
+                        "MES_CGD0602_09",
+                        "NIM_CSE0703_01"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Account",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Account GUID",
+                    "example_values": [
+                        "367f58ab-d5e4-43ec-b5ff-ddc27426db5d"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "Location",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Location code",
+                    "example_values": [
+                        "53"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "CrewType",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Crew type identifier",
+                    "example_values": [
+                        "299",
+                        "125",
+                        "141",
+                        "307",
+                        "250"
+                    ],
+                    "unique_values": 44
+                },
+                {
+                    "column_name": "Supervisor",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Supervisor identifier",
+                    "example_values": [
+                        "10395",
+                        "8662",
+                        "6981"
+                    ],
+                    "null_percentage": 20,
+                    "unique_values": 56
+                },
+                {
+                    "column_name": "Employees",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "List of employee IDs in the crew. Format: [123, 456, 789]",
+                    "example_values": [
+                        "[10395]",
+                        "[8662]",
+                        "[6248, 6981, 5276, 6990, 8485]"
+                    ],
+                    "unique_values": 67
+                },
+                {
+                    "column_name": "Equipments",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "List of equipment IDs in the crew. Usually empty []",
+                    "example_values": [
+                        "[]"
+                    ],
+                    "unique_values": 6
+                }
+            ],
+            "common_queries": [
+                "SELECT Code, Supervisor, Employees FROM crews WHERE Code LIKE 'NIM%'",
+                "SELECT COUNT(*) FROM crews WHERE Supervisor IS NOT NULL",
+                "SELECT * FROM crews WHERE CrewType = '299'"
+            ]
+        },
+        {
+            "table_name": "CrewEmployee",
+            "table_description": "Many-to-many mapping between crews and employees. Links employees to their assigned crews.",
+            "total_rows": "Unknown (sample shows 100 rows with id from 2110 to 2209)",
+            "primary_key": "id",
+            "columns": [
+                {
+                    "column_name": "id",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Unique mapping identifier",
+                    "example_values": [
+                        2110,
+                        2122,
+                        2133,
+                        2143
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Account",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Account GUID",
+                    "example_values": [
+                        "367f58ab-d5e4-43ec-b5ff-ddc27426db5d"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "Crew",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Crew ID (foreign key to crews table)",
+                    "example_values": [
+                        320,
+                        886,
+                        982,
+                        1099
+                    ],
+                    "unique_values": 91
+                },
+                {
+                    "column_name": "EmployeeType",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Employee type identifier",
+                    "example_values": [
+                        1826,
+                        1829
+                    ],
+                    "unique_values": 12
+                },
+                {
+                    "column_name": "Employee",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Employee ID (foreign key to Employee table)",
+                    "example_values": [
+                        8311,
+                        8693,
+                        8692,
+                        5934
+                    ],
+                    "unique_values": 56
+                }
+            ],
+            "common_queries": [
+                "SELECT e.Name, ce.Crew FROM Employee e JOIN CrewEmployee ce ON e.id = ce.Employee WHERE ce.Crew = 320",
+                "SELECT Crew, COUNT(*) FROM CrewEmployee GROUP BY Crew",
+                "SELECT * FROM CrewEmployee WHERE Employee = 8311"
+            ],
+            "relationships": {
+                "foreign_keys": [
+                    {
+                        "column": "Crew",
+                        "references": "crews.ID"
+                    },
+                    {
+                        "column": "Employee",
+                        "references": "Employee.id"
+                    }
+                ]
+            }
+        },
+        {
+            "table_name": "Equipment",
+            "table_description": "Equipment inventory. Tracks vehicles, heavy equipment, tools with status, location, and type information.",
+            "total_rows": "Unknown (sample shows 100 rows with ID from 1086 to 1185)",
+            "primary_key": "ID",
+            "columns": [
+                {
+                    "column_name": "ID",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Unique equipment identifier",
+                    "example_values": [
+                        1086,
+                        1087,
+                        1090,
+                        1091
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "UId",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Unique external identifier",
+                    "example_values": [
+                        "BS00036",
+                        "BS00040",
+                        "BS00209"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "LicensePlate",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "License plate number",
+                    "example_values": [
+                        "8608YB",
+                        "4693YR",
+                        "3307HA"
+                    ],
+                    "null_percentage": 2,
+                    "unique_values": 98
+                },
+                {
+                    "column_name": "Description",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Equipment description. Format: TYPE,SIZE,MAKE,PDO",
+                    "example_values": [
+                        "MINIBUS,34STR,MITSUBISHI,PDO",
+                        "MINIBUS,26STR,TOYOTA,PDO"
+                    ],
+                    "unique_values": 51
+                },
+                {
+                    "column_name": "Status",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Equipment status. Values: Eqp Surplus Maintenance, Eqp is Surplus, Eqp In Operation",
+                    "example_values": [
+                        "Eqp Surplus Maintenance",
+                        "Eqp is Surplus",
+                        "Eqp In Operation"
+                    ],
+                    "unique_values": 8
+                },
+                {
+                    "column_name": "Account",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Account GUID",
+                    "example_values": [
+                        "367f58ab-d5e4-43ec-b5ff-ddc27426db5d"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "EquipmentType",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Equipment type identifier (foreign key to EquipmentType table)",
+                    "example_values": [
+                        332,
+                        325,
+                        474,
+                        473
+                    ],
+                    "unique_values": 29
+                },
+                {
+                    "column_name": "Location",
+                    "data_type": "int",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Location code",
+                    "example_values": [
+                        52,
+                        55,
+                        56
+                    ],
+                    "unique_values": 18
+                },
+                {
+                    "column_name": "Manager",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Manager identifier",
+                    "example_values": [
+                        "70",
+                        "NULL"
+                    ],
+                    "null_percentage": 96,
+                    "unique_values": 2
+                }
+            ],
+            "common_queries": [
+                "SELECT LicensePlate, Description, Status, EquipmentType FROM Equipment WHERE Location = 55",
+                "SELECT Status, COUNT(*) FROM Equipment GROUP BY Status",
+                "SELECT * FROM Equipment WHERE EquipmentType = 332"
+            ],
+            "relationships": {
+                "foreign_keys": [
+                    {
+                        "column": "EquipmentType",
+                        "references": "EquipmentType.ID"
+                    }
+                ]
+            }
+        },
+        {
+            "table_name": "task_daily",
+            "table_description": "Daily task execution records. Captures actual daily work, quantities, hours, and completions for tasks.",
+            "total_rows": "Unknown (sample shows 100 rows with id from 1416 to 1515)",
+            "primary_key": "id",
+            "columns": [
+                {
+                    "column_name": "id",
+                    "data_type": "bigint",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Unique task daily record identifier",
+                    "example_values": [
+                        1416,
+                        1420,
+                        1440,
+                        1443
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "ActionOn",
+                    "data_type": "date",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Date of the daily task action. Format: YYYY-MM-DD",
+                    "example_values": [
+                        "2024-12-03",
+                        "2024-12-04",
+                        "2024-12-05"
+                    ],
+                    "unique_values": 61
+                },
+                {
+                    "column_name": "task_code",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Task code (e.g., LOC1000-34398, FLC1010-34397-T01)",
+                    "example_values": [
+                        "LOC1000-34398",
+                        "LOC1010-34398",
+                        "FLC1010-34397-T01"
+                    ],
+                    "unique_values": 19
+                },
+                {
+                    "column_name": "schedule_id",
+                    "data_type": "bigint",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Schedule identifier",
+                    "example_values": [
+                        181
+                    ],
+                    "unique_values": 2
+                },
+                {
+                    "column_name": "project_id",
+                    "data_type": "uniqueidentifier",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Project GUID identifier",
+                    "example_values": [
+                        "CEE4127C-3C4A-416C-9B0F-C7EFA4F47433"
+                    ],
+                    "unique_values": 2
+                },
+                {
+                    "column_name": "required",
+                    "data_type": "decimal",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Required quantity",
+                    "example_values": [
+                        1.0,
+                        37.5,
+                        12.2,
+                        18.3
+                    ],
+                    "unique_values": 19
+                },
+                {
+                    "column_name": "planned",
+                    "data_type": "decimal",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Planned quantity",
+                    "example_values": [
+                        0.5,
+                        32.0,
+                        10.0,
+                        20.0
+                    ],
+                    "unique_values": 22
+                },
+                {
+                    "column_name": "duration",
+                    "data_type": "decimal",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Duration of the task in days",
+                    "example_values": [
+                        38.0,
+                        39.0,
+                        15.0,
+                        1.0
+                    ],
+                    "unique_values": 10
+                },
+                {
+                    "column_name": "remaining_duration",
+                    "data_type": "decimal",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Remaining duration in days",
+                    "example_values": [
+                        15.0,
+                        0.0,
+                        11.0,
+                        6.0
+                    ],
+                    "unique_values": 10
+                },
+                {
+                    "column_name": "progress",
+                    "data_type": "decimal",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Progress percentage (0.0 to 1.0)",
+                    "example_values": [
+                        0.6,
+                        1.0,
+                        0.3
+                    ],
+                    "unique_values": 7
+                },
+                {
+                    "column_name": "ready",
+                    "data_type": "bit",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Task ready flag. 1 = Ready, 0 = Not Ready",
+                    "example_values": [
+                        1,
+                        0
+                    ]
+                },
+                {
+                    "column_name": "completed",
+                    "data_type": "bit",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Task completed flag. 1 = Completed, 0 = Not Completed",
+                    "example_values": [
+                        0,
+                        1
+                    ]
+                },
+                {
+                    "column_name": "well_id",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Associated well identifier",
+                    "example_values": [
+                        "34398",
+                        "34397"
+                    ],
+                    "unique_values": 4
+                }
+            ],
+            "common_queries": [
+                "SELECT * FROM task_daily WHERE well_id = '34398' AND ActionOn >= '2024-12-01'",
+                "SELECT task_code, SUM(required) FROM task_daily WHERE well_id = '34398' GROUP BY task_code",
+                "SELECT ActionOn, COUNT(*) FROM task_daily WHERE completed = 1 GROUP BY ActionOn"
+            ],
+            "relationships": {
+                "foreign_keys": [
+                    {
+                        "column": "well_id",
+                        "references": "2026_Well_Delivery_Scope_Well_Type.Well_ID"
+                    }
+                ]
+            }
+        },
+        {
+            "table_name": "Revenue",
+            "table_description": "Revenue and progress value tracking. Links progress to financial metrics and purpose values.",
+            "total_rows": "Unknown (sample shows 100 rows with id from 16 to 115)",
+            "primary_key": "id",
+            "columns": [
+                {
+                    "column_name": "id",
+                    "data_type": "bigint",
+                    "max_length": null,
+                    "nullable": false,
+                    "is_identity": true,
+                    "description": "Unique revenue record identifier (auto-incrementing)",
+                    "example_values": [
+                        16,
+                        17,
+                        18,
+                        19,
+                        20
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "rigcode",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Rig code identifier",
+                    "example_values": [
+                        "NL0010"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "well_id",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Well identifier",
+                    "example_values": [
+                        "33151"
+                    ],
+                    "unique_values": 7
+                },
+                {
+                    "column_name": "code",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Activity code. Format: LCPC1000-33151, LCCC1000-33151",
+                    "example_values": [
+                        "LCPC1000-33151",
+                        "LCPC1005-33151",
+                        "LCPC1020-33151"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "pms",
+                    "data_type": "decimal",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "PMS value. 0.1 or 0.0",
+                    "example_values": [
+                        0.1,
+                        0.0
+                    ],
+                    "unique_values": 2
+                },
+                {
+                    "column_name": "step_type",
+                    "data_type": "nvarchar",
+                    "max_length": 100,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Step type. Values: LOC, ENG, etc.",
+                    "example_values": [
+                        "LOC"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "planned_progress",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Planned progress value (usually 1)",
+                    "example_values": [
+                        "1"
+                    ],
+                    "unique_values": 5
+                },
+                {
+                    "column_name": "plan_percent",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Plan percentage. Values: 0.09999999999999999, 0.024999999999999998",
+                    "example_values": [
+                        "0.09999999999999999",
+                        "0.024999999999999998"
+                    ],
+                    "unique_values": 7
+                },
+                {
+                    "column_name": "acutal_progress",
+                    "data_type": "decimal",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Actual progress (usually 1.0)",
+                    "example_values": [
+                        1.0
+                    ],
+                    "unique_values": 2
+                },
+                {
+                    "column_name": "act_percent",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Actual percentage",
+                    "example_values": [
+                        "0.09999999999999999",
+                        "0.024999999999999998"
+                    ],
+                    "unique_values": 5
+                },
+                {
+                    "column_name": "total_purpose_value",
+                    "data_type": "decimal",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Total purpose value (e.g., 2900.0000)",
+                    "example_values": [
+                        2900.0000
+                    ],
+                    "unique_values": 2
+                },
+                {
+                    "column_name": "planned_purpose_value",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Planned purpose value",
+                    "example_values": [
+                        "2900.0"
+                    ],
+                    "unique_values": 2
+                },
+                {
+                    "column_name": "actual_purpose_value",
+                    "data_type": "decimal",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Actual purpose value",
+                    "example_values": [
+                        2900.0000
+                    ],
+                    "unique_values": 2
+                },
+                {
+                    "column_name": "Title",
+                    "data_type": "nvarchar",
+                    "max_length": 255,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Title/description of the activity",
+                    "example_values": [
+                        "Surveying &amp; Setting out for Well Pad",
+                        "Construction of Access Road",
+                        "Cutting, Removal and Levelling of Jebel (Rock)"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "created_at",
+                    "data_type": "datetime2",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Record creation timestamp",
+                    "example_values": [
+                        "2026-02-09 10:40:49"
+                    ]
+                }
+            ],
+            "common_queries": [
+                "SELECT * FROM Revenue WHERE well_id = '33151' ORDER BY id",
+                "SELECT code, Title, total_purpose_value FROM Revenue WHERE step_type = 'LOC'",
+                "SELECT SUM(total_purpose_value) FROM Revenue WHERE well_id = '33151'"
+            ],
+            "relationships": {
+                "foreign_keys": [
+                    {
+                        "column": "well_id",
+                        "references": "2026_Well_Delivery_Scope_Well_Type.Well_ID"
+                    }
+                ]
+            }
+        },
+        {
+            "table_name": "SAP_DRILLING_SEQUENCE",
+            "table_description": "SAP drilling sequence and rig move planning. Contains SAP drilling schedules, well locations, and rig assignments.",
+            "total_rows": "Unknown (sample shows 100 rows from 2026 to 2041)",
+            "primary_key": "Well_ID",
+            "columns": [
+                {
+                    "column_name": "Work_Center",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Work center / rig identifier. Values: SWER149, SWERIG99, SWER101, etc.",
+                    "example_values": [
+                        "SWER149",
+                        "SWERIG99",
+                        "SWER115",
+                        "SWER101"
+                    ],
+                    "unique_values": 10
+                },
+                {
+                    "column_name": "Operation_Short",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Short operation code. Format: Y762-10207, Y760-10239, 6845-10995",
+                    "example_values": [
+                        "Y762-10207",
+                        "Y760-10239",
+                        "6845-10995",
+                        "6846-10996"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Activity",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Activity code",
+                    "example_values": [
+                        "Y762",
+                        "Y760",
+                        "6845",
+                        "6846"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Opr_System_status",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Operation system status. Value: REL (Released)",
+                    "example_values": [
+                        "REL"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "Earl_start_date",
+                    "data_type": "date",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Earliest start date",
+                    "example_values": [
+                        "2026-03-24",
+                        "2026-04-25",
+                        "2039-12-26",
+                        "2040-01-21"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "EarliestEndDate",
+                    "data_type": "date",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Earliest end date",
+                    "example_values": [
+                        "2026-03-28",
+                        "2026-04-29",
+                        "2040-01-21",
+                        "2040-02-16"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Station_Code",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Station code. Values: SSFDP, LEK, USP, NIM, etc.",
+                    "example_values": [
+                        "SSFDP",
+                        "LEK",
+                        "NIM"
+                    ],
+                    "unique_values": 6
+                },
+                {
+                    "column_name": "Normal_duration",
+                    "data_type": "float",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Normal duration in days",
+                    "example_values": [
+                        4.5,
+                        26.0,
+                        25.0,
+                        22.0
+                    ],
+                    "unique_values": 47,
+                    "sample_range": "4.5 to 85.2"
+                },
+                {
+                    "column_name": "Norm_duratn_un",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Duration unit. Value: DAY",
+                    "example_values": [
+                        "DAY"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "Well_Name",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Well name",
+                    "example_values": [
+                        "RKDS_2026_OP_LOC18",
+                        "RKDS_2026_WI_LOC6",
+                        "DMB-LSB-OP-3 (CR)"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Field",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Oil field name",
+                    "example_values": [
+                        "RAKID SOUTH",
+                        "DHULAIMA",
+                        "LEKHWAIR",
+                        "NIMR"
+                    ],
+                    "unique_values": 10
+                },
+                {
+                    "column_name": "Responsible_asset",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Responsible asset. Values: SOUTH, NORTH, GAS",
+                    "example_values": [
+                        "SOUTH",
+                        "NORTH",
+                        "GAS"
+                    ],
+                    "unique_values": 3
+                },
+                {
+                    "column_name": "Well_ID",
+                    "data_type": "varchar",
+                    "max_length": 50,
+                    "nullable": false,
+                    "is_identity": false,
+                    "description": "Well identifier (primary key)",
+                    "example_values": [
+                        "10207",
+                        "10239",
+                        "10995",
+                        "10996"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Well_Location",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Well location description",
+                    "example_values": [
+                        "RKDS_2026_OP_LOC18",
+                        "RKDS_2026_WI_LOC6",
+                        "DMB-LSB-OP-3 (CR)"
+                    ],
+                    "unique_values": 100
+                },
+                {
+                    "column_name": "Well_Function",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Well function. Values: Oil Producer, Water Injector, Gas Producer",
+                    "example_values": [
+                        "Oil Producer",
+                        "Water Injector",
+                        "Gas Producer"
+                    ],
+                    "unique_values": 5
+                },
+                {
+                    "column_name": "Well_Category",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Well category. Value: Development",
+                    "example_values": [
+                        "Development"
+                    ],
+                    "unique_values": 1
+                },
+                {
+                    "column_name": "PCAP_Category",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "PCAP category. Values: Category IV, Category III",
+                    "example_values": [
+                        "Category IV",
+                        "Category III"
+                    ],
+                    "unique_values": 2
+                },
+                {
+                    "column_name": "Move_days",
+                    "data_type": "tinyint",
+                    "max_length": null,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "Move days for rig. Usually 0 or 1",
+                    "example_values": [
+                        0,
+                        1
+                    ],
+                    "unique_values": 2
+                },
+                {
+                    "column_name": "PDO_Well_Type",
+                    "data_type": "nvarchar",
+                    "max_length": 50,
+                    "nullable": true,
+                    "is_identity": false,
+                    "description": "PDO well type code",
+                    "example_values": [
+                        "NPS9723PCVH",
+                        "NP9724WIVABH",
+                        "LTL23GN",
+                        "LTL23WIH"
+                    ],
+                    "unique_values": 100
+                }
+            ],
+            "common_queries": [
+                "SELECT * FROM SAP_DRILLING_SEQUENCE WHERE Well_ID = '10207'",
+                "SELECT Work_Center, Well_Name, Earl_start_date, EarliestEndDate FROM SAP_DRILLING_SEQUENCE WHERE Responsible_asset = 'SOUTH' ORDER BY Earl_start_date",
+                "SELECT COUNT(*) FROM SAP_DRILLING_SEQUENCE WHERE Well_Function = 'Oil Producer'"
+            ],
+            "relationships": {
+                "foreign_keys": [
+                    {
+                        "column": "Well_ID",
+                        "references": "2026_Well_Delivery_Scope_Well_Type.Well_ID"
+                    },
+                    {
+                        "column": "Work_Center",
+                        "references": "2026_Well_Delivery_Scope_Well_Type.RIG"
+                    }
+                ]
+            }
+        }
+    ],
+    "relationship_summary": {
+        "primary_keys": {
+            "2026_Well_Delivery_Scope_Well_Type": "Well_ID",
+            "ActivityTaskPlan": "row_id",
+            "WMR": "sl_no",
+            "Employee": "id",
+            "crews": "ID",
+            "CrewEmployee": "id",
+            "Equipment": "ID",
+            "task_daily": "id",
+            "Revenue": "id",
+            "SAP_DRILLING_SEQUENCE": "Well_ID"
+        },
+        "foreign_key_relationships": [
+            {
+                "from_table": "ActivityTaskPlan",
+                "from_column": "Well_ID",
+                "to_table": "2026_Well_Delivery_Scope_Well_Type",
+                "to_column": "Well_ID"
+            },
+            {
+                "from_table": "WMR",
+                "from_column": "pdo_well_id",
+                "to_table": "2026_Well_Delivery_Scope_Well_Type",
+                "to_column": "Well_ID"
+            },
+            {
+                "from_table": "WMR",
+                "from_column": "rig_no",
+                "to_table": "SAP_DRILLING_SEQUENCE",
+                "to_column": "Work_Center"
+            },
+            {
+                "from_table": "CrewEmployee",
+                "from_column": "Crew",
+                "to_table": "crews",
+                "to_column": "ID"
+            },
+            {
+                "from_table": "CrewEmployee",
+                "from_column": "Employee",
+                "to_table": "Employee",
+                "to_column": "id"
+            },
+            {
+                "from_table": "task_daily",
+                "from_column": "well_id",
+                "to_table": "2026_Well_Delivery_Scope_Well_Type",
+                "to_column": "Well_ID"
+            },
+            {
+                "from_table": "Revenue",
+                "from_column": "well_id",
+                "to_table": "2026_Well_Delivery_Scope_Well_Type",
+                "to_column": "Well_ID"
+            },
+            {
+                "from_table": "SAP_DRILLING_SEQUENCE",
+                "from_column": "Well_ID",
+                "to_table": "2026_Well_Delivery_Scope_Well_Type",
+                "to_column": "Well_ID"
+            }
+        ]
+    }
+}

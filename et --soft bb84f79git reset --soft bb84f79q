@@ -1,0 +1,34 @@
+[33mcommit eea8ccdcf7b5157d8eb1b155e003b4f8f44b5db6[m
+Author: muhammedafsalpmngxp <muhammed.afsal@ngxptechnologies.com>
+Date:   Wed Jun 17 13:00:04 2026 +0530
+
+    Add initial implementation of Database Assistant with environment setup, README, and core functionality
+    
+    add logic to db connect, improved the llm prompt, hallucination removed, tested, support local model
+
+db_assistant/.env.template
+db_assistant/.gitignore
+db_assistant/README.md
+db_assistant/requirements.txt
+db_assistant/run.py
+db_assistant/scripts/create_readonly_user.sql
+db_assistant/scripts/refresh_lookups.py
+db_assistant/src/__init__.py
+db_assistant/src/config.py
+db_assistant/src/connection_pool.py
+db_assistant/src/conversation.py
+db_assistant/src/db_executor.py
+db_assistant/src/intent_parser.py
+db_assistant/src/llm_client.py
+db_assistant/src/models.py
+db_assistant/src/response_formatter.py
+db_assistant/src/schema_introspector.py
+db_assistant/src/server.py
+db_assistant/src/sql_builder.py
+db_assistant/src/utils.py
+db_assistant/src/value_resolver.py
+db_assistant/test_gemini_models.py
+db_assistant/tests/__init__.py
+db_assistant/tests/eval_harness.py
+db_assistant/tests/test_core.py
+other/10_table_deatils.json
