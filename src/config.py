@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     # --- LLM provider (pluggable) ---
     # Accepts "ollama", "local" (alias for ollama, matching db_assistant), or "gemini".
     LLM_PROVIDER: str = "ollama"
-    LLM_MODEL: str = "qwen2.5:7b"
+    LLM_MODEL: str = "qwen3:8b"           # used when LLM_PROVIDER=local/ollama
+    GEMINI_MODEL_NAME: str = "gemini-2.5-flash"  # used when LLM_PROVIDER=gemini
     LLM_TEMPERATURE: float = 0.0
     LLM_TIMEOUT_SEC: int = 120
     LLM_MAX_TOKENS: int = 1024

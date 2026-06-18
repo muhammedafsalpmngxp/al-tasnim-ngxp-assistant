@@ -132,10 +132,11 @@ async def health():
     except Exception:
         pass
 
+    active_model = settings.GEMINI_MODEL_NAME if settings.LLM_PROVIDER == "gemini" else settings.LLM_MODEL
     body = {
         "status": "healthy",
         "provider": settings.LLM_PROVIDER,
-        "model": settings.LLM_MODEL,
+        "model": active_model,
         "tools": tool_names(),
         "rag_reachable": rag_ok,
     }

@@ -35,9 +35,9 @@ def get_chat_model():
         )
     if provider == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI
-        logger.info("LLM provider=gemini model=%s", settings.LLM_MODEL)
+        logger.info("LLM provider=gemini model=%s", settings.GEMINI_MODEL_NAME)
         return ChatGoogleGenerativeAI(
-            model=settings.LLM_MODEL,
+            model=settings.GEMINI_MODEL_NAME,
             temperature=settings.LLM_TEMPERATURE,
             max_output_tokens=settings.LLM_MAX_TOKENS,
             google_api_key=settings.GOOGLE_API_KEY,
