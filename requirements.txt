@@ -1,0 +1,7 @@
+llama-index
+llama-index-llms-groq
+llama-index-llms-ollama
+llama-index-embeddings-huggingface
+sqlalchemy
+pyodbc
+python-dotenv
