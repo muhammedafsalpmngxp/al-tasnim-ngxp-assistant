@@ -1,7 +1,19 @@
-llama-index
-llama-index-llms-groq
-llama-index-llms-ollama
-llama-index-embeddings-huggingface
-sqlalchemy
-pyodbc
-python-dotenv
+# Core LlamaIndex
+llama-index==0.14.16
+llama-index-core==0.14.22
+
+# LLM providers
+llama-index-llms-groq==0.5.0
+llama-index-llms-ollama==0.10.1
+
+# Embedding model
+llama-index-embeddings-huggingface==0.7.0
+sentence-transformers==5.5.1
+huggingface_hub==0.36.2
+
+# Database
+SQLAlchemy==2.0.50
+pyodbc==5.1.0
+
+# Utilities
+python-dotenv==1.0.0

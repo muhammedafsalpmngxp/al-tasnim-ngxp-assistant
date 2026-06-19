@@ -1,10 +1,40 @@
-export_all_tables.py
-exports/
+# Environment — never commit credentials
+.env
 
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Vector index (runtime artifact, rebuilt automatically)
+table_index_storage/
+vector_index_10tables.pkl
+*.pkl
+
+# Logs (runtime, not source)
 logs/
 
-table_index_storage/
+# CSV exports (large binary/data files)
+exports/
 
-vector_index_10tables.pkl
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
 
-.env
+# OS
+.DS_Store
+Thumbs.db
+
+export_all_tables.py
