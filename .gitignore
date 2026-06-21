@@ -1,40 +1,71 @@
-# Environment — never commit credentials
+# Environment / Secrets
+
 .env
+.env.*
+!.env.example
 
 # Python
-__pycache__/
+
+**pycache**/
 *.py[cod]
 *.pyo
 *.pyd
+*.so
 *.egg-info/
+.eggs/
 dist/
 build/
-.eggs/
 
-# Virtual environments
+# Virtual Environments
+
 .venv/
 venv/
 env/
 
-# Vector index (runtime artifact, rebuilt automatically)
+# Runtime Vector Indexes (rebuild automatically)
+
 table_index_storage/
-vector_index_10tables.pkl
+value_index_storage/
+
+# Pickle / Model Artifacts
+
 *.pkl
+*.pickle
 
-# Logs (runtime, not source)
+# Logs
+
 logs/
+*.log
 
-# CSV exports (large binary/data files)
+# Exports / Generated Data
+
 exports/
 
 # IDE
+
 .vscode/
 .idea/
 *.suo
 *.user
 
-# OS
+# OS Files
+
 .DS_Store
 Thumbs.db
 
+# Database / Cache Files
+
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary Files
+
+*.tmp
+*.temp
+
+# Local Utility Scripts
+
 export_all_tables.py
+
+vector_index_10tables.pkl

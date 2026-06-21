@@ -8,8 +8,13 @@ The tool generates SQL, runs it against the live SQL Server database, and replie
 ## Features
 
 - **Natural language queries** — ask in plain English, get human-readable answers
+- **Multi-step pipeline** — table retrieval → query planner → SQL generation → self-critique → execution → synthesis
+- **Auto relationship discovery** — joins discovered from `sys.foreign_keys` + column-name matching at startup
+- **Sample-value injection** — LLM sees real data examples so it knows valid values for each column
 - **Case-insensitive / fuzzy search** — "rajesh", "RAJESH", "Rajesh Kumar" all work
-- **Read-only enforced** — SELECT only; INSERT/UPDATE/DELETE/DROP are blocked at two layers
+- **Read-only enforced** — SELECT only; INSERT/UPDATE/DELETE/DROP are blocked before execution
+- **SQL self-critique** — LLM reviews its own SQL before it runs (disable with `ENABLE_SQL_CRITIQUE=0`)
+- **Anti-hallucination synthesis** — answer only from rows returned; never infers or adds facts
 - **Groq (primary) + Ollama (fallback)** — automatic fallback if Groq is rate-limited
 - **Conversation history** — follow-up questions ("show more", "filter those by field NIMR") work
 - **Audit log** — every query and SQL statement logged to `logs/assistant.log`
@@ -67,6 +72,8 @@ See [`.env.example`](.env.example) for the full list with descriptions.
 | `RETRIEVER_TOP_K` | | `3` | Tables passed to LLM per query |
 | `LOG_LEVEL` | | `INFO` | Logging level |
 | `REBUILD_INDEX` | | `0` | Set to `1` to force index rebuild |
+| `ENABLE_SQL_CRITIQUE` | | `1` | Set to `0` to skip SQL self-critique (faster) |
+| `ENABLE_SAMPLE_VALUES` | | `1` | Set to `0` to skip sample-value collection at startup |
 
 ---
 
