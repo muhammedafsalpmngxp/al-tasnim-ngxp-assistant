@@ -1,0 +1,303 @@
+# AL TASNIM — Agentic AI Module Configuration
+#
+# All agent behaviour is controlled from this file.
+# No agent logic is hardcoded in Python.
+#
+# Architecture: per v2.1 spec
+#   Rule-based router (FREE) → Cheap LLM (only when unclear) → Advanced LLM (complex reasoning)
+#
+# Run agent server:
+#   conda activate v12
+#   python agent/app.py                  # port 8001 by default
+
+# ── Server ────────────────────────────────────────────────────────────────────
+server:
+  host: "0.0.0.0"
+  port: 8001
+  title: "AL TASNIM Agentic AI"
+  version: "1.0.0"
+
+# ── Upstream RAG/SQL service (prod_rag.py) ───────────────────────────────────
+rag_service:
+  base_url: "http://localhost:8000"
+  ask_endpoint: "/ask"
+  search_endpoint: "/search"
+  health_endpoint: "/healthz"
+  timeout_seconds: 120
+  default_top_k: 8
+
+# ── LLM tiers (per architecture doc: cheapest path first) ─────────────────────
+llm:
+  # Absolute last-resort model name when neither env var nor config resolves
+  fallback_model: "llama3.1:8b"
+
+  # Tier 1 — intent resolution when rule-based router is uncertain
+  # Use the same small local model already running in prod_rag.py
+  classifier:
+    provider: "ollama"                   # "ollama" | "groq"
+    model: "${LLM_MODEL}"               # reads from .env (llama3.1:8b)
+    base_url: "${OLLAMA_URL}"           # reads from .env
+    temperature: 0.0
+    max_tokens: 256
+
+  # Tier 2 — final answer synthesis with evidence
+  generator:
+    provider: "ollama"
+    model: "${LLM_MODEL}"
+    base_url: "${OLLAMA_URL}"
+    temperature: 0.1
+    max_tokens: 1024
+
+  # Tier 3 — complex reasoning (root cause, recommendations) — upgrade here
+  # when Groq/Cerebras/DeepSeek key available
+  reasoning:
+    provider: "groq"                    # falls back to ollama if no GROQ_API_KEY
+    model: "llama-3.3-70b-versatile"   # Groq hosted — GPT-4o class, pay-per-token
+    fallback_model: "${LLM_MODEL}"
+    temperature: 0.1
+    max_tokens: 2048
+
+# ── Deterministic router rules ────────────────────────────────────────────────
+# Architecture doc: rule-based FIRST, no LLM cost when intent is clear.
+# Patterns use Python regex (re.IGNORECASE applied automatically).
+router:
+  # Queries matching these → Document RAG tool — checked BEFORE sql_patterns
+  # Use this list for strong document signals that must win over SQL keyword matches
+  # (e.g. "What is the FLAF procedure?" has "FLAF" in sql but "procedure" here wins)
+  rag_priority_patterns:
+    - "\\bprocedure\\b"
+    - "\\bprocedure\\s+for\\b"
+    - "\\bprocedure\\s+of\\b"
+    - "\\bhow\\s+to\\s+"
+    - "\\bsop\\s+for\\b"
+    - "what\\s+is\\s+the\\s+[\\w\\s]+?procedure"
+    - "what\\s+is\\s+the\\s+[\\w\\s]+?process"
+    - "\\bexplain\\s+the\\b"
+    - "\\bdefinition\\s+of\\b"
+    - "\\bmeaning\\s+of\\b"
+    - "\\baccording\\s+to\\b"
+
+  # Queries matching these → Document RAG tool only
+  rag_patterns:
+    - "what\\s+is\\s+"
+    - "how\\s+to\\s+"
+    - "\\bexplain\\b"
+    - "\\bprocedure\\b"
+    - "\\bprocess\\b"
+    - "\\bdefinition\\b"
+    - "\\bdescribe\\b"
+    - "\\bmeaning\\s+of\\b"
+    - "\\baccording\\s+to\\b"
+    - "\\bmethodology\\b"
+    - "\\bsop\\b"
+    - "\\bmanual\\b"
+    - "\\btraining\\b"
+    - "\\bdiscussed\\b"
+    - "\\btranscript\\b"
+    - "\\bmeeting\\b"
+    - "\\bagenda\\b"
+    - "what\\s+does\\s+m-?\\d+\\s+"
+
+  # Queries matching these → Database SQL tool
+  sql_patterns:
+    - "\\bhow\\s+many\\b"
+    - "\\bcount\\b"
+    - "\\btotal\\b"
+    - "\\blist\\s+(all|the)\\b"
+    - "\\bshow\\s+(me\\s+)?\\b"
+    - "\\bcurrent\\s+status\\b"
+    - "\\bprogress\\s+of\\b"
+    - "\\bwhich\\s+(rig|well)\\b"
+    - "\\bbuffer\\s+status\\b"
+    - "\\baverage\\b"
+    - "\\bbreakdown\\b"
+    - "\\bsummary\\b"
+    - "\\bper\\s+rig\\b"
+    - "\\btop\\s+\\d+\\b"
+    - "\\bactivity\\s+code\\b"
+    - "\\bproduction\\s+norm\\b"
+    - "\\bkpi\\b"
+    - "\\bflaf\\b"
+    - "\\bpdo\\s+well\\b"
+    - "\\bmilestone\\s+status\\b"
+
+  # Queries matching these → SQL + Analytics (Phase 2 analytics is precomputed)
+  analytics_patterns:
+    - "when\\s+will\\s+.{0,30}\\s+finish"
+    - "when\\s+will\\s+it\\s+finish"
+    - "\\bforecast\\b"
+    - "\\bpredict\\b"
+    - "delay\\s+risk"
+    - "completion\\s+date"
+    - "behind\\s+schedule"
+    - "recovery\\s+rate"
+    - "remaining\\s+duration"
+    - "estimated\\s+completion"
+
+  # Queries matching these → SQL + RAG (multi-source)
+  multi_patterns:
+    - "why\\s+is.*delay"
+    - "root\\s+cause"
+    - "cause\\s+of.*delay"
+    - "reason\\s+for.*delay"
+    - "why\\s+is.*behind"
+
+  # Queries matching these → SQL + Analytics + RAG + Recommend
+  recommend_patterns:
+    - "what\\s+should\\s+(we|i)\\b"
+    - "\\brecommend\\b"
+    - "how\\s+to\\s+recover"
+    - "action\\s+plan"
+    - "how\\s+can\\s+we\\b"
+    - "\\bsuggestion\\b"
+    - "\\badvice\\b"
+    - "best\\s+approach"
+
+# ── Clarification gate ────────────────────────────────────────────────────────
+clarification:
+  # Patterns that indicate a vague operational query requiring clarification
+  vague_patterns:
+    - "when\\s+will\\s+it\\s+finish"
+    - "when\\s+will\\s+it\\s+"
+    - "why\\s+is\\s+it\\s+delayed"
+    - "give\\s+me\\s+an?\\s+update"
+    - "any\\s+updates?"
+    - "how\\s+is\\s+it\\s+going"
+    - "what.{0,20}status"
+    - "what.{0,20}progress"
+    - "what'?s?\\s+happening"
+    - "is\\s+it\\s+delayed"
+    - "behind\\s+schedule$"  # vague if no well ID follows
+
+  # Pattern indicating specific identifier present — bypasses gate
+  specific_id_pattern: "\\b(NIMR|SWER|ALBRG|well\\s+id|pdo|\\d{4,6}|F-C-|F-M-|F-E-)\\b"
+
+  # Static clarification prompts per pattern
+  prompts:
+    default: >
+      Could you please specify: (1) the Well ID or Well Name, (2) the Activity or Phase,
+      or (3) the reporting period you are referring to?
+    when_will_finish: >
+      To give you an accurate completion forecast, please provide: the Well ID or Activity Code
+      you want to check.
+    why_delayed: >
+      To analyse the delay, please specify: the Well ID or Activity that is delayed.
+    give_me_update: >
+      Please specify: which well, rig, cluster, or activity you would like an update on.
+
+# ── Evidence validation ────────────────────────────────────────────────────────
+# Per architecture doc: validate before EVERY answer. If invalid → refuse.
+validation:
+  min_sources_required: 1
+  min_answer_length_chars: 20
+  refuse_message: >
+    I could not find enough verified information to answer this confidently.
+    Please rephrase your query or provide more specific details.
+  hallucination_phrases:
+    - "i don't know"
+    - "i cannot determine"
+    - "i'm not sure"
+    - "i am not able to"
+
+# ── Answer format ─────────────────────────────────────────────────────────────
+# Every important answer must include these sections (per architecture doc).
+answer_format:
+  sections:
+    - direct_answer
+    - evidence
+    - source_citation
+    - confidence_level
+    - assumptions
+    - risk_limitation
+    - recommended_next_action
+
+# ── Human review triggers ─────────────────────────────────────────────────────
+# Escalate to human review for any of these conditions.
+human_review:
+  trigger_patterns:
+    - "night\\s+shift"
+    - "overnight\\s+shift"
+    - "overtime\\s+approv"
+    - "overtime\\s+request"
+    - "budget\\s+(increase|change|revision)"
+    - "contract\\s+(change|amendment)"
+    - "safety\\s+critical"
+    - "manpower\\s+(change|increase|reduction)"
+    - "schedule\\s+(change|revision|extension)"
+  low_confidence_threshold: "Low"  # trigger review if confidence = Low
+  # Message appended when operations-level user receives a recommendation
+  operations_review_message: >
+    This recommendation requires review and approval by the operations manager
+    before any action is taken.
+
+# ── Embeddings (used by semantic cache) ──────────────────────────────────────
+embeddings:
+  model: "${EMBED_MODEL}"               # reads from .env; falls back to default_model
+  default_model: "all-MiniLM-L6-v2"    # used when EMBED_MODEL env var is not set
+  device: "cpu"
+
+# ── LLM prompts ───────────────────────────────────────────────────────────────
+# All LLM prompt templates live here — no prompt strings hardcoded in Python.
+prompts:
+  recommend_system: |
+    You are an AL TASNIM operational AI assistant.
+    Your role is to produce a short, structured recommendation for well-delivery operations.
+    Rules:
+    1. Never fabricate data. Only use the evidence provided.
+    2. Always state assumptions clearly.
+    3. Always state risk level (Low / Medium / High).
+    4. State if approval from operations manager is required.
+    5. Format as numbered action items — no long paragraphs.
+    6. Keep the entire response under 300 words.
+
+  recommend_template: |
+    User question: {query}
+
+    SQL data summary: {sql_summary}
+
+    Analytics summary: {analytics_summary}
+
+    Document context: {rag_context}
+
+    Produce a structured recommendation with:
+    1. Recommended actions (numbered list)
+    2. Expected recovery / benefit for each action
+    3. Cost impact (Low / Medium / High)
+    4. Risk level (Low / Medium / High)
+    5. Human approval required? (Yes/No + reason)
+    6. Confidence level (Low / Medium / High)
+    7. Key assumptions
+
+  llm_router_system: |
+    You are a query router for an Oil & Gas operational AI system.
+    Classify the user question into one of these categories:
+      rag         — asks about documents, procedures, definitions, training, transcripts
+      sql         — asks for live data: counts, lists, status, progress, dates
+      analytics   — asks for forecasts, completion dates, delay risk, trends
+      multi       — needs both documents AND live database data
+      recommend   — asks for recommendations, action plans, recovery steps
+
+    Respond with ONLY the single category word, nothing else.
+
+# ── Cache ─────────────────────────────────────────────────────────────────────
+cache:
+  enabled: true
+  # Simple in-memory cache (Phase 1); upgrade to Redis in Phase 2
+  semantic_threshold: 0.92   # cosine similarity to treat as a cache hit
+  ttl_seconds: 300           # 5-minute TTL per architecture doc
+
+# ── Observability / logging ────────────────────────────────────────────────────
+logging:
+  log_to_console: true
+  log_table: "agent_query_log"   # PostgreSQL table (created on startup)
+  trace_fields:
+    - session_id
+    - user_role
+    - query
+    - route
+    - tools_called
+    - sources
+    - confidence
+    - latency_ms
+    - from_cache
+    - error

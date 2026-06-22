@@ -1,0 +1,38 @@
+# ── Environment & secrets ────────────────────────────────────────────────────
+.env
+*.env
+
+# ── Data files — client data, not versioned in git ───────────────────────────
+# Store in shared drive / S3 / SharePoint and copy to data/ before running ingest.
+data/
+
+# ── Generated artefacts — rebuilt by ingest pipeline ─────────────────────────
+dataset/
+.embed_cache/
+
+# ── Runtime outputs ───────────────────────────────────────────────────────────
+test_report.json
+eval_report.json
+nohup.out
+*.log
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── LibreOffice / MS Office temp locks ───────────────────────────────────────
+.~lock.*
+
+# ── OS & editor noise ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Claude Code session files ────────────────────────────────────────────────
+.claude/

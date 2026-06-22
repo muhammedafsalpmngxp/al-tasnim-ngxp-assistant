@@ -1,0 +1,425 @@
+table: well_monitoring
+source_file: POC 1 WellMonitoringReport_Feb_Data_VERIFIED.csv
+max_rows: 50
+allowed_columns:
+- rig_no
+- well_location
+- well_name_after_spud
+- pdo_well_id
+- well_type
+- over_all_progress_percentages
+- actual_rig_on_date
+- actual_rig_off_date
+- location_preparation_status_in_progress_completed
+- flow_line_const_status_in_progress_completed
+- flow_line_commi_status_in_progress_completed
+- cellar_20
+- access_road_5
+- earth_work_60
+- overall_loc_preparation_10_100
+- overall_engg_10_100
+- overall_const_10_100
+- overall_comm_progress_100
+- week_number
+- remark_status_area_of_attention_issues
+trigger_words:
+- how many
+- count
+- total wells
+- list all
+- list wells
+- which rig
+- which well
+- average progress
+- progress of
+- status of
+- wells in
+- wells on
+- wells by
+- wells with
+- completed wells
+- in progress
+- rig on
+- rig off
+- overall progress
+- percent
+- overdue
+- delayed
+- behind schedule
+- ahead of schedule
+- on track
+- top wells
+- bottom wells
+- most wells
+- least wells
+- lowest progress
+- highest progress
+- breakdown
+- summary
+- per rig
+- cellar progress
+- access road
+- flowline
+- earthwork
+- engineering progress
+- commissioning
+- location prep
+- february
+- well id
+- well location
+- rig no
+- rig number
+- pdo well
+- location of well
+- which rig is
+# Column names (well_name_after_spud, pdo_well_id, etc.) are auto-added as trigger
+# words in Python from allowed_columns — no need to list them here.
+- well name
+- activity code
+- activity master
+- production norm
+- productivity norm
+- qty/hr
+- qty per hour
+- crew group
+- activity description
+- norm for
+- find activity
+- look up activity
+- which activity
+- buffer status
+- buffer
+- nimr cluster
+- rol status
+- drilled status
+- vmb report
+# tables: — source_file and description only.
+# Columns and row counts come from the live DB at startup (_load_live_schema).
+# Never edit column lists here — they become stale after any ingest run.
+tables:
+- name: well_monitoring
+  source_file: POC 1 WellMonitoringReport_Feb_Data_VERIFIED.csv
+  description: Well monitoring report — one row per well with 128 operational columns
+    including rig, progress, dates, flowline, cellar, and commissioning status.
+- name: project_ids
+  source_file: POC 1 ProjectIDs_VERIFIED.csv
+  description: Project ID lookup table mapping project codes to names and descriptions.
+- name: daily_plan
+  source_file: Daily_Plan.csv
+  description: Daily activity plan with planned vs actual activity timelines.
+- name: crew_master
+  source_file: Crew Master_VERIFIED.xlsx
+  description: Crew master list — crew group names, formations, PG/EG codes, and quantities.
+- name: well_master
+  source_file: Well Master _ Nimr _ 2026_VERIFIED.xlsx
+  description: Well master list for Nimr 2026 — well IDs, locations, and well attributes.
+- name: activity_master
+  source_file: Activity Master_VERIFIED.xlsx
+  description: Activity master — productivity norms for civil, mechanical, and E&I activities.
+- name: wmr_nimr
+  source_file: WMR-Nimr.xlsx
+  description: Nimr Cluster Well Monitoring Report (May 2026) — 370 wells with buffer
+    status, progress, rig assignment, PDO well ID, pegged dates, and construction milestones.
+- name: daily_plan_nimr
+  source_file: DailyPlan-Nimr.xlsx
+  description: Daily plan for Nimr field operations.
+- name: ph_productivity
+  source_file: PH_Productivity_Nimr_2026-05-10.xlsx
+  description: Person-hour productivity data for Nimr operations (May 2026).
+- name: well_delivery_kpis
+  source_file: Well Delivery Core KPIs (1) (1).xlsx
+  description: Well delivery core KPIs — planned vs actual delivery performance metrics for Nimr.
+- name: construction_delivery
+  source_file: Operational Charts - Construction - WD Dashboard (1).xlsx
+  description: Construction delivery table — well delivery management data with 87 operational columns.
+- name: well_delivery_kpis
+  source_file: Well Delivery Core KPIs (1) (1).xlsx
+  description: Well delivery core KPIs — 13 KPI metrics with Nimr and Marmul counts for pegged locations, FLAFs issued, rig-on schedule compliance, etc.
+- name: operational_wells
+  source_file: ACC Dump (loaded via legacy pipeline)
+  description: Operational wells table — 483 wells across 27 fields (AL BURJ, NIMR, AMAL SOUTH, etc.) with rig assignment, well function, and well type.
+- name: operational_tasks
+  source_file: Task_Plan.xlsx (loaded via legacy pipeline)
+  description: Operational task tracking — 44,235 milestone and activity records per well including Flowline Start/Finish, Hook Up, Rig-On/Off, Surveying, Grading, with progress (1.0=done, 0.0=pending).
+- name: crew_master
+  source_file: Crew Master_VERIFIED.xlsx
+  description: Crew master list — crew group names, formations, PG/EG codes, and quantities.
+- name: well_master
+  source_file: Well Master _ Nimr _ 2026_VERIFIED.xlsx
+  description: Well master list for Nimr 2026 — well IDs, locations, and well attributes.
+intents:
+  well_count:
+    description: Count how many wells match a categorical filter (rig name, well type,
+      location name). Do NOT use for numeric range filters — use progress_range for that.
+  well_list:
+    description: List wells with key operational fields, optionally filtered by rig,
+      well type, or status
+    select_columns:
+    - rig_no
+    - well_name_after_spud
+    - well_type
+    - over_all_progress_percentages
+    - location_preparation_status_in_progress_completed
+    - actual_rig_on_date
+    - actual_rig_off_date
+    default_limit: 20
+  progress_range:
+    description: Count wells whose overall progress percentage falls within a numeric
+      range, e.g. between 50% and 80%. Use whenever the question asks about wells
+      above/below/between specific progress percentages.
+  rig_summary:
+    description: Per-rig breakdown showing how many wells each rig has and their average
+      progress. Use ONLY for questions about well counts per rig, not for finding the
+      rig with highest or lowest progress (use progress_summary for that).
+    default_limit: 10
+  progress_summary:
+    description: Which rig/well_type/week has the highest or lowest average progress.
+      Use when asking which rig leads or lags in progress. Supports group_by.
+    allowed_group_by:
+    - rig_no
+    - well_type
+    - week_number
+    default_limit: 20
+  top_wells:
+    description: Top or bottom N wells ranked by overall progress percentage
+    select_columns:
+    - rig_no
+    - well_name_after_spud
+    - well_type
+    - over_all_progress_percentages
+    default_limit: 10
+  status_breakdown:
+    description: Count wells grouped by a status column (location prep, flowline construction,
+      commissioning)
+    allowed_status_columns:
+    - location_preparation_status_in_progress_completed
+    - flow_line_const_status_in_progress_completed
+    - flow_line_commi_status_in_progress_completed
+  well_detail:
+    description: Full details for a specific well, looked up by well name or PDO well
+      ID
+    select_columns:
+    - rig_no
+    - well_name_after_spud
+    - well_location
+    - well_type
+    - pdo_well_id
+    - over_all_progress_percentages
+    - actual_rig_on_date
+    - actual_rig_off_date
+    - location_preparation_status_in_progress_completed
+    - flow_line_const_status_in_progress_completed
+    - remark_status_area_of_attention_issues
+  activity_lookup:
+    description: Look up activity details from the activity master — production norms,
+      qty/hr, duration, crew group, UOM — filtered by activity code or keyword
+    table: activity_master
+    fast_path_keywords:
+    - activity code
+    - qty/hr
+    - qty per hour
+    - production norm
+    - productivity norm
+    - activity master
+    - norm for activity
+    fast_path_extract: activity_code
+    select_columns:
+    - discipline
+    - activity_group_description
+    - activity_code
+    - activity_description
+    - crew_group_name
+    - duration_for_activity
+    - duration_hrs
+    - uom
+    - qty_hr
+    allowed_filter_columns:
+    - activity_code
+    - discipline
+    - crew_group_name
+    - activity_group_description
+    default_limit: 10
+  nimr_detail:
+    description: Look up Nimr cluster well details including buffer status, progress,
+      rig, pegged date, and construction dates — from the Nimr WMR (May 2026).
+      Use for any question about buffer status, nimr cluster, or Nimr-specific well data.
+    table: wmr_nimr
+    fast_path_keywords:
+    - buffer status
+    - buffer
+    - nimr cluster
+    fast_path_extract: pdo_well_id
+    select_columns:
+    - rig_no
+    - well_location
+    - well_name_after_spud
+    - pdo_well_id
+    - well_type
+    - buffer_status
+    - actual_pegged_date
+    - cum_progress_for_this_week
+    - last_week_cum_progress
+    - actual_rig_on_date
+    - actual_rig_off_date
+    - latest_exp_rig_on_location_sap_data
+    allowed_filter_columns:
+    - pdo_well_id
+    - rig_no
+    - well_location
+    - buffer_status
+    - well_type
+    default_limit: 20
+  kpi_lookup:
+    description: Look up Well Delivery Core KPIs — 13 KPI metrics comparing Nimr vs
+      Marmul counts for pegged locations, FLAFs, rig-on dates, and delivery milestones.
+      Use for questions about KPI values, FLAF counts, pegged locations, or rig-on
+      schedule performance.
+    table: well_delivery_kpis
+    fast_path_keywords:
+    - kpi
+    - flaf
+    - pegged
+    - rig on location
+    - 90 days
+    - kpi count
+    - delivery kpi
+    - marmul count
+    - nimr count
+    select_columns:
+    - sr_no
+    - kpis
+    - nimr_count
+    - marmul_count
+    allowed_filter_columns:
+    - sr_no
+    - kpis
+    default_limit: 13
+  nimr_buffer_count:
+    description: Count Nimr wells grouped by buffer status (drilled, ROL, Buffer1,
+      Buffer2). Use for questions like 'how many wells are in ROL status' or 'breakdown
+      of buffer status in Nimr'.
+    table: wmr_nimr
+    fast_path_keywords:
+    - buffer breakdown
+    - buffer count
+    - how many buffer
+  crew_lookup:
+    description: Look up crew group details from the crew master — crew name, formation,
+      PG/EG code and text, quantity, critical/support category, and weightage.
+      Use for questions about crew groups, crew composition, flowline/mechanical/civil crew details.
+    table: crew_master
+    fast_path_keywords:
+    - crew group
+    - crew master
+    - crew composition
+    - crew formation
+    - pg eg code
+    - pg code
+    - crew for
+    - which crew
+    - crew list
+    select_columns:
+    - crew_group_name
+    - crew_formation
+    - pg_eg_code
+    - pg_eg_text
+    - qty
+    - critical_support
+    - weightage
+    allowed_filter_columns:
+    - crew_group_name
+    - pg_eg_code
+    - critical_support
+    default_limit: 20
+  well_master_lookup:
+    description: Look up wells from the Nimr 2026 well master — field, well location,
+      rig, well ID, and well function (Oil Producer / Water Injector).
+      Use for questions like 'which wells are oil producers in AL BURJ' or 'find well by ID'.
+    table: well_master
+    fast_path_keywords:
+    - well master
+    - nimr 2026
+    - oil producer
+    - water injector
+    - well function
+    select_columns:
+    - station_code
+    - field
+    - well_location
+    - rig_no
+    - well_id
+    - well_function
+    allowed_filter_columns:
+    - field
+    - rig_no
+    - well_id
+    - well_function
+    default_limit: 20
+  field_wells:
+    description: List wells from operational_wells table grouped by field or rig —
+      covers all fields (AL BURJ, NIMR, AMAL SOUTH, AMIN, etc.) and 10 rigs.
+      Use for questions about which wells are in a specific field, or which rigs operate
+      in a field. Field names are loaded dynamically from the DB at startup.
+    table: operational_wells
+    fast_path_keywords:
+    - which field
+    - wells in field
+    - field wells
+    - rig in field
+    - well location in
+    - station code
+    - well function
+    # Note: individual field names (AL BURJ, NIMR, etc.) are injected at runtime
+    # from SELECT DISTINCT field FROM operational_wells — not hardcoded here.
+    dynamic_filter_values:
+      field: "SELECT DISTINCT field FROM operational_wells WHERE field IS NOT NULL ORDER BY field"
+    select_columns:
+    - well_id
+    - station_code
+    - field
+    - well_location
+    - rig_no
+    - well_function
+    - well_type
+    allowed_filter_columns:
+    - field
+    - rig_no
+    - well_function
+    - well_type
+    default_limit: 20
+  milestone_status:
+    description: Check milestone and activity completion status for a specific well
+      from the operational task tracking table (44,235 records). Milestones include
+      Flowline Start/Finish, Hook Up Start/Finish, Rig-On, Rig-Off, Surveying, Grading, etc.
+      progress=1.0 means done, 0.0 means pending.
+      Use for questions like 'what milestones are done for well 31722' or 'is flowline done for well X'.
+    table: operational_tasks
+    fast_path_keywords:
+    - milestone status
+    - task status
+    - flowline start
+    - flowline finish
+    - hook up start
+    - hook up finish
+    - rig-on status
+    - rig-off status
+    - ms1000
+    - mil2000
+    - flcv
+    - surveying status
+    - milestones for well
+    - tasks for well
+    fast_path_extract: well_id
+    select_columns:
+    - well_id
+    - code
+    - text
+    - type
+    - progress
+    - start_date
+    - end_date
+    allowed_filter_columns:
+    - well_id
+    - code
+    - type
+    default_limit: 30

@@ -1,0 +1,129 @@
+# AL TASNIM — Universal Data Ingestion Configuration
+#
+# Single source of truth for all data files loaded into PostgreSQL and the
+# RAG vector store.  Add a new source here and re-run:
+#
+#   conda activate v12
+#   python scripts/09_universal_ingest.py
+#
+# type options:
+#   sql       → load into a PostgreSQL table (queryable via Text-to-SQL)
+#   workforce → extract headcount facts from the workforce dashboard Excel
+#
+# For type=sql:
+#   table      → PostgreSQL table name (snake_case)
+#   sheet      → sheet name (Excel only; omit for CSV)
+#   header_row → 0-based row index of real column headers (default 0)
+#                Use >0 to skip merged title rows (e.g. header_row: 5)
+#   description → one-line description shown to the LLM intent classifier
+
+sources:
+
+  # ── CSV data ─────────────────────────────────────────────────────────────────
+
+  - file: "POC 1 WellMonitoringReport_Feb_Data_VERIFIED.csv"
+    dir: CSV
+    type: sql
+    table: well_monitoring
+    description: "Well monitoring report — one row per well with 128 operational columns including rig, progress, dates, flowline, cellar, and commissioning status."
+
+  - file: "POC 1 ProjectIDs_VERIFIED.csv"
+    dir: CSV
+    type: sql
+    table: project_ids
+    description: "Project ID lookup table mapping project codes to names and descriptions."
+
+  - file: "Daily_Plan.csv"
+    dir: CSV
+    type: sql
+    table: daily_plan
+    description: "Daily activity plan with planned vs actual activity timelines."
+
+  # ── Excel data ────────────────────────────────────────────────────────────────
+
+  - file: "Task_Plan.xlsx"
+    dir: EXCEL
+    sheet: "Task_Plan"
+    type: sql
+    table: task_plan
+    header_row: 0
+    description: "Well task plan — activities, durations, progress, and start dates for each milestone."
+
+  - file: "Crew Master_VERIFIED.xlsx"
+    dir: EXCEL
+    sheet: "Sheet1"
+    type: sql
+    table: crew_master
+    header_row: 0
+    description: "Crew master list — crew group names, formations, PG/EG codes, and quantities."
+
+  - file: "Well Master _ Nimr _ 2026_VERIFIED.xlsx"
+    dir: EXCEL
+    sheet: "Sheet1"
+    type: sql
+    table: well_master
+    header_row: 2
+    description: "Well master list for Nimr 2026 — well IDs, locations, and well attributes."
+
+  - file: "Activity Master_VERIFIED.xlsx"
+    dir: EXCEL
+    sheet: "Activity Master"
+    type: sql
+    table: activity_master
+    header_row: 2
+    description: "Activity master — productivity norms for civil, mechanical, and E&I activities."
+
+  - file: "Job Progress Report-Nimr.xlsx"
+    dir: EXCEL
+    sheet: "Job Progress (Nimr)"
+    type: sql
+    table: job_progress
+    header_row: 4
+    description: "Job progress report for Nimr — activity-level progress tracking."
+
+  - file: "DailyPlan-Nimr.xlsx"
+    dir: EXCEL
+    sheet: "Daily Plan (Nimr)"
+    type: sql
+    table: daily_plan_nimr
+    header_row: 4
+    description: "Daily plan for Nimr field operations."
+
+  - file: "PH_Productivity_Nimr_2026-05-10.xlsx"
+    dir: EXCEL
+    sheet: "PH_Productivity"
+    type: sql
+    table: ph_productivity
+    header_row: 0
+    description: "Person-hour productivity data for Nimr operations (May 2026)."
+
+  - file: "Well Delivery Core KPIs (1) (1).xlsx"
+    dir: EXCEL
+    sheet: "KPIs"
+    type: sql
+    table: well_delivery_kpis
+    header_row: 1
+    description: "Well delivery core KPIs — 13 KPI metrics with Nimr and Marmul counts (pegged locations, FLAFs, rig-on dates, etc.)."
+
+  - file: "Operational Charts - Construction - WD Dashboard (1).xlsx"
+    dir: EXCEL
+    sheet: "PDO MGT Delivery Table - W"
+    type: sql
+    table: construction_delivery
+    header_row: 0
+    description: "Construction delivery table — well delivery management data with 87 operational columns."
+
+  - file: "WMR-Nimr.xlsx"
+    dir: EXCEL
+    sheet: "WMR"
+    type: sql
+    table: wmr_nimr
+    header_row: 5
+    description: "Nimr Cluster Well Monitoring Report (May 2026) — 370 wells with buffer status, progress, rig, PDO well ID, pegged date, and construction milestones."
+
+  # ── Workforce dashboard ───────────────────────────────────────────────────────
+
+  - file: "Mockup Dashboard with Drilldown 04032026_VERIFIED.xlsx"
+    dir: EXCEL
+    type: workforce
+    description: "AL TASNIM workforce dashboard — headcount by nationality, category, and employment type."
