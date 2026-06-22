@@ -51,7 +51,6 @@ scripts/
   09_universal_ingest.py     Ingest all sources defined in sql_config.yaml into PostgreSQL
   07_auto_extract_excel.py   Auto-scan Excel files for column metadata
   10_test_all.py             Run full test suite against the running RAG server (48 tests)
-  11_export_schema.py        Export live DB schema to YAML for inspection
   12_test_agent.py           Run full test suite against the agentic layer (52 tests)
 ```
 
