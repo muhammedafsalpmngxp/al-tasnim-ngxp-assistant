@@ -73,11 +73,20 @@ DB_QUERY_TIMEOUT    = int(os.getenv("DB_QUERY_TIMEOUT", "120"))
 DB_POOL_SIZE        = int(os.getenv("DB_POOL_SIZE", "5"))
 DB_MAX_OVERFLOW     = int(os.getenv("DB_MAX_OVERFLOW", "10"))
 
+LLM_PROVIDER        = os.getenv("LLM_PROVIDER", "groq").split("#")[0].strip().lower()
+if LLM_PROVIDER == "local":
+    LLM_PROVIDER = "ollama"
+
 GROQ_API_KEY        = os.getenv("GROQ_API_KEY")
 GROQ_MODEL_NAME     = os.getenv("GROQ_MODEL_NAME", "llama-3.3-70b-versatile")
 GROQ_TEMPERATURE    = float(os.getenv("GROQ_TEMPERATURE", "0.0"))
 GROQ_MAX_TOKENS     = int(os.getenv("GROQ_MAX_TOKENS", "2048"))
 GROQ_CONTEXT_WINDOW = int(os.getenv("GROQ_CONTEXT_WINDOW", "32768"))
+
+GOOGLE_API_KEY      = os.getenv("GOOGLE_API_KEY")
+GEMINI_MODEL_NAME   = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash")
+LLM_TEMPERATURE     = float(os.getenv("LLM_TEMPERATURE", "0.0"))
+LLM_MAX_TOKENS      = int(os.getenv("LLM_MAX_TOKENS", "2048"))
 
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "BAAI/bge-small-en-v1.5")
 
@@ -520,7 +529,7 @@ def _retrieve_value_hints(question: str, value_retriever) -> str:
         return ""
 
 # ============================================================
-# LLM WRAPPER — Groq with exponential-backoff retry
+# LLM WRAPPER — provider-agnostic with exponential-backoff retry
 # ============================================================
 
 def _is_transient(err: Exception) -> bool:
@@ -538,9 +547,9 @@ def _llm_complete(prompt: str, groq_llm) -> str:
             if not _is_transient(e) or attempt == MAX_RETRY_ATTEMPTS:
                 raise
             delay = 2.0 * (2 ** (attempt - 1))
-            logger.warning(f"Groq transient error (attempt {attempt}), retry in {delay:.0f}s: {e}")
+            logger.warning(f"LLM transient error (attempt {attempt}), retry in {delay:.0f}s: {e}")
             time.sleep(delay)
-    raise RuntimeError("Groq: all retry attempts exhausted")
+    raise RuntimeError("LLM: all retry attempts exhausted")
 
 # ============================================================
 # INTENT CLASSIFIER
@@ -940,7 +949,7 @@ _init_lock  = threading.Lock()
 _initialized = False
 
 _engine          = None
-_groq_llm        = None
+_pipeline_llm    = None  # LlamaIndex LLM — provider chosen by LLM_PROVIDER env var
 _schema_data: dict = {}
 _rels_data: dict   = {}
 _sql_db          = None
@@ -951,7 +960,7 @@ _all_tables: list    = []
 
 
 def _initialize() -> None:
-    global _initialized, _engine, _groq_llm, _schema_data, _rels_data
+    global _initialized, _engine, _pipeline_llm, _schema_data, _rels_data
     global _sql_db, _table_retriever, _raw_table_retriever, _value_retriever, _all_tables
 
     if _initialized:
@@ -965,35 +974,68 @@ def _initialize() -> None:
         from llama_index.embeddings.huggingface import HuggingFaceEmbedding
         from llama_index.llms.groq import Groq
 
-        env_check = {
+        # --- validate DB credentials ---
+        db_check = {
             "DB_SERVER": DB_SERVER, "DB_NAME": DB_NAME,
             "DB_READONLY_USER": DB_USER, "DB_READONLY_PASSWORD": DB_PASSWORD,
-            "GROQ_API_KEY": GROQ_API_KEY,
         }
-        missing = [k for k, v in env_check.items() if not v]
+        missing = [k for k, v in db_check.items() if not v]
         if missing:
             raise RuntimeError(
                 f"Missing required env vars: {', '.join(missing)}. "
                 f"Set them in your .env file."
             )
-        placeholder = [k for k, v in env_check.items() if v and v.strip() in _PLACEHOLDERS]
+        placeholder = [k for k, v in db_check.items() if v and v.strip() in _PLACEHOLDERS]
         if placeholder:
             raise RuntimeError(
                 f"Placeholder values detected for: {', '.join(placeholder)}. "
                 f"Replace them with real values in your .env file."
             )
+
+        # --- validate LLM credentials for chosen provider ---
+        if LLM_PROVIDER == "groq":
+            if not GROQ_API_KEY:
+                raise RuntimeError("GROQ_API_KEY is required when LLM_PROVIDER=groq. Set it in your .env file.")
+            if GROQ_API_KEY.strip() in _PLACEHOLDERS:
+                raise RuntimeError("GROQ_API_KEY is still a placeholder. Replace it with a real key.")
+        elif LLM_PROVIDER == "gemini":
+            if not GOOGLE_API_KEY:
+                raise RuntimeError("GOOGLE_API_KEY is required when LLM_PROVIDER=gemini. Set it in your .env file.")
+            if GOOGLE_API_KEY.strip() in _PLACEHOLDERS:
+                raise RuntimeError("GOOGLE_API_KEY is still a placeholder. Replace it with a real key.")
+            if not GOOGLE_API_KEY.startswith("AIza"):
+                logger.warning(
+                    "GOOGLE_API_KEY does not look like a Google AI Studio key (expected prefix 'AIza'). "
+                    "Get a valid key at https://aistudio.google.com/apikey"
+                )
+
         logger.info(
-            "DB config: server=%s db=%s user=%s",
-            DB_SERVER, DB_NAME, DB_USER,
+            "DB config: server=%s db=%s user=%s | pipeline LLM provider=%s",
+            DB_SERVER, DB_NAME, DB_USER, LLM_PROVIDER,
         )
 
         _t0 = time.time()
-        logger.info("[INIT 1/7] Configuring Groq LLM: model=%s", GROQ_MODEL_NAME)
-        _groq_llm = Groq(
-            model=GROQ_MODEL_NAME, api_key=GROQ_API_KEY,
-            temperature=GROQ_TEMPERATURE, max_tokens=GROQ_MAX_TOKENS, context_window=GROQ_CONTEXT_WINDOW,
-        )
-        Settings.llm = _groq_llm
+        if LLM_PROVIDER == "gemini":
+            from llama_index.llms.gemini import Gemini
+            # LlamaIndex Gemini requires "models/<name>" prefix
+            _gemini_model = GEMINI_MODEL_NAME if GEMINI_MODEL_NAME.startswith("models/") else f"models/{GEMINI_MODEL_NAME}"
+            logger.info("[INIT 1/7] Configuring Gemini LLM: model=%s", _gemini_model)
+            _pipeline_llm = Gemini(
+                model_name=_gemini_model,
+                api_key=GOOGLE_API_KEY,
+                temperature=LLM_TEMPERATURE,
+                max_tokens=LLM_MAX_TOKENS,
+            )
+        else:
+            # Default: groq (also covers any unrecognised provider — safe fallback)
+            from llama_index.llms.groq import Groq
+            logger.info("[INIT 1/7] Configuring Groq LLM: model=%s", GROQ_MODEL_NAME)
+            _pipeline_llm = Groq(
+                model=GROQ_MODEL_NAME, api_key=GROQ_API_KEY,
+                temperature=GROQ_TEMPERATURE, max_tokens=GROQ_MAX_TOKENS,
+                context_window=GROQ_CONTEXT_WINDOW,
+            )
+        Settings.llm = _pipeline_llm
         logger.info("[INIT 1/7] done (%.1fs)", time.time() - _t0)
 
         _t = time.time()
@@ -1099,7 +1141,7 @@ def ask(question: str, session_id: Optional[str] = None):
             _sql_db,
             _schema_data,
             _rels_data,
-            _groq_llm,
+            _pipeline_llm,
             _all_tables,
         )
         elapsed = (time.time() - start) * 1000

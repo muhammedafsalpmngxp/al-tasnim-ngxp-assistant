@@ -68,6 +68,18 @@ class Settings(BaseSettings):
     def _validate(self):
         if self.LLM_PROVIDER == "gemini" and not self.GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY is required when LLM_PROVIDER=gemini")
+        if self.LLM_PROVIDER == "gemini" and self.GOOGLE_API_KEY:
+            key = self.GOOGLE_API_KEY
+            # Google AI Studio API keys always start with "AIza".
+            # OAuth2 tokens (AQ., ya29., etc.) are NOT valid here.
+            if not key.startswith("AIza"):
+                import warnings
+                warnings.warn(
+                    "GOOGLE_API_KEY does not look like a Google AI Studio API key "
+                    "(expected prefix 'AIza'). OAuth2 / service-account tokens are not "
+                    "supported. Get a valid key at https://aistudio.google.com/apikey",
+                    stacklevel=2,
+                )
         if self.LLM_PROVIDER == "groq" and not self.GROQ_API_KEY:
             raise ValueError("GROQ_API_KEY is required when LLM_PROVIDER=groq")
         if not (1 <= self.PORT <= 65535):
