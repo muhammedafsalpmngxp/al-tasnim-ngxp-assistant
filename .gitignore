@@ -36,3 +36,6 @@ Thumbs.db
 
 # ── Claude Code session files ────────────────────────────────────────────────
 .claude/
+
+# ── Auto-generated DB schema snapshot — source of truth is the live DB ───────
+config/schema.yaml

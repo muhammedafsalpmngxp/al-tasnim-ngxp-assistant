@@ -607,10 +607,9 @@ def _load_sql_config() -> dict:
 _SQL_CFG: dict = _load_sql_config()
 
 # Everything below reads from the config — no values hardcoded in Python
-_ALLOWED_TABLE:   str      = _SQL_CFG["table"]
-_SOURCE_FILE:     str      = _SQL_CFG["source_file"]
-_MAX_ROWS:        int      = int(_SQL_CFG["max_rows"])
-_ALLOWED_COLUMNS: set[str] = set(_SQL_CFG["allowed_columns"])
+_ALLOWED_TABLE:     str      = _SQL_CFG.get("default_table", "well_monitoring")
+_SOURCE_FILE:       str      = _SQL_CFG.get("default_source_file", "")
+_MAX_ROWS:          int      = int(_SQL_CFG["max_rows"])
 _SQL_TRIGGER_WORDS: set[str] = set(_SQL_CFG["trigger_words"])
 _INTENT_CFG:      dict     = _SQL_CFG.get("intents", {})
 
@@ -625,9 +624,13 @@ for _iname, _icfg in _INTENT_CFG.items():
         _FAST_PATH.append((_kw.lower(), _iname, _icfg.get("fast_path_extract", "")))
 _FAST_PATH.sort(key=lambda x: -len(x[0]))   # longest match wins
 
-# Auto-add allowed_columns as trigger words — no need to list them twice in the YAML.
-# sql_config.yaml trigger_words contains human-readable phrases; column names come here.
-_SQL_TRIGGER_WORDS.update(_ALLOWED_COLUMNS)
+# Auto-add select_columns and allowed_filter_columns from every intent as trigger words.
+# This means any column name referenced in sql_config.yaml intents can route to SQL.
+for _icfg in _INTENT_CFG.values():
+    for _col in _icfg.get("select_columns", []):
+        _SQL_TRIGGER_WORDS.add(_col.replace("_", " ").lower())
+    for _col in _icfg.get("allowed_filter_columns", []):
+        _SQL_TRIGGER_WORDS.add(_col.replace("_", " ").lower())
 
 
 def _load_live_schema() -> dict[str, list[tuple[str, str]]]:
@@ -660,25 +663,13 @@ _LIVE_SCHEMA: dict[str, list[tuple[str, str]]] = _load_live_schema()
 
 
 def _build_intent_description() -> str:
-    """Build the LLM intent-classifier prompt from config + live DB schema."""
+    """Build the LLM intent-classifier prompt from config + live DB schema.
+    Fully driven by sql_config.yaml intents + live DB schema. No hardcoded values."""
     lines = ["Available intents and their parameters:\n"]
-    examples = {
-        "well_count":       '{"intent":"well_count","filter_column":"well_type","filter_value":"PCP"}',
-        "well_list":        '{"intent":"well_list","filter_column":"rig_no","filter_value":"SWER101","limit":20}',
-        "progress_range":   '{"intent":"progress_range","min_pct":50,"max_pct":80}',
-        "rig_summary":      '{"intent":"rig_summary","limit":10}',
-        "progress_summary": '{"intent":"progress_summary","group_by":"rig_no"}',
-        "top_wells":        '{"intent":"top_wells","direction":"bottom","limit":10}',
-        "status_breakdown": '{"intent":"status_breakdown","status_column":"location_preparation_status_in_progress_completed"}',
-        "well_detail":        '{"intent":"well_detail","well_name":"NIMR-1687"}',
-        "activity_lookup":    '{"intent":"activity_lookup","activity_code":"F-C-FDI-EXC-13"}',
-        "nimr_detail":        '{"intent":"nimr_detail","pdo_well_id":"34357"}',
-        "nimr_buffer_count":  '{"intent":"nimr_buffer_count"}',
-    }
     for intent_name, cfg in _INTENT_CFG.items():
         lines.append(intent_name)
         lines.append(f'  description: {cfg.get("description", "")}')
-        # Prefer explicit select_columns from config; fall back to live DB schema
+        # Column hints: prefer config select_columns, fall back to live DB schema
         if "select_columns" in cfg:
             lines.append(f'  columns: {", ".join(cfg["select_columns"])}')
         else:
@@ -690,368 +681,195 @@ def _build_intent_description() -> str:
             lines.append(f'  group_by options: {", ".join(cfg["allowed_group_by"])}')
         if "allowed_status_columns" in cfg:
             lines.append(f'  status_column options: {" | ".join(cfg["allowed_status_columns"])}')
-        if intent_name in examples:
-            lines.append(f'  example: {examples[intent_name]}')
+        if "allowed_filter_columns" in cfg:
+            lines.append(f'  filter_columns: {", ".join(cfg["allowed_filter_columns"])}')
         lines.append("")
     return "\n".join(lines)
 
 
 def _compile_sql(intent: dict) -> tuple[str, dict]:
     """
-    Safe SQL Compiler — the only place SQL is written.
-    Reads column lists and limits from config. LLM never writes SQL.
-    Raises ValueError if intent or params are invalid.
+    Generic config-driven SQL compiler.
+    All data knowledge (tables, columns, sql patterns) lives in sql_config.yaml.
+    Python contains only the query-building logic — zero column names, zero table names.
+    To add a new intent: add it to sql_config.yaml only. No Python changes needed.
     """
-    name       = (intent.get("intent") or "").strip()
+    name = (intent.get("intent") or "").strip()
     intent_cfg = _INTENT_CFG.get(name)
-    if not intent_cfg and name not in _INTENT_CFG:
-        raise ValueError(
-            f"Unknown intent '{name}'. Allowed: {list(_INTENT_CFG.keys())}"
-        )
+    if not intent_cfg:
+        raise ValueError(f"Unknown intent '{name}'. Allowed: {list(_INTENT_CFG.keys())}")
 
-    limit = min(int(intent.get("limit", intent_cfg.get("default_limit", 20))), _MAX_ROWS)
+    table    = intent_cfg.get("table", _ALLOWED_TABLE)
+    limit    = min(int(intent.get("limit", intent_cfg.get("default_limit", 20))), _MAX_ROWS)
+    sql_type = intent_cfg.get("sql_type", "list")
+
+    # Per-intent validation: column must be in allowed_filter_columns and exist in live schema
+    live_col_map: dict[str, str] = dict(_LIVE_SCHEMA.get(table, []))
+    allowed_filters = set(intent_cfg.get("allowed_filter_columns", []))
 
     def validate_col(col: str) -> None:
-        if col and col not in _ALLOWED_COLUMNS:
-            raise ValueError(f"Column '{col}' is not in the allowlist (see config/sql_config.yaml).")
+        if not col:
+            return
+        if allowed_filters and col not in allowed_filters:
+            raise ValueError(
+                f"Column '{col}' not in allowed_filter_columns for intent '{name}'. "
+                f"Allowed: {sorted(allowed_filters)} — see config/sql_config.yaml."
+            )
+        if live_col_map and col not in live_col_map:
+            raise ValueError(f"Column '{col}' does not exist in table '{table}'.")
 
-    if name == "well_count":
+    def build_cols() -> str:
+        cfg_cols = intent_cfg.get("select_columns")
+        if cfg_cols:
+            return ", ".join(cfg_cols)
+        live = [c for c in live_col_map if not c.startswith("_")][:20]
+        return ", ".join(live) if live else "*"
+
+    # ── count ──────────────────────────────────────────────────────────────────
+    if sql_type == "count":
         col = intent.get("filter_column", "")
         val = intent.get("filter_value", "")
         validate_col(col)
         if col and val:
-            return (
-                f"SELECT COUNT(*) AS well_count FROM {_ALLOWED_TABLE} WHERE {col} ILIKE %(val)s",
-                {"val": f"%{val}%"},
-            )
-        return f"SELECT COUNT(*) AS well_count FROM {_ALLOWED_TABLE}", {}
+            return (f"SELECT COUNT(*) AS count FROM {table} WHERE {col} ILIKE %(val)s",
+                    {"val": f"%{val}%"})
+        return f"SELECT COUNT(*) AS count FROM {table}", {}
 
-    if name == "well_list":
-        col    = intent.get("filter_column", "")
-        val    = intent.get("filter_value", "")
+    # ── list ───────────────────────────────────────────────────────────────────
+    if sql_type == "list":
+        col = intent.get("filter_column", "")
+        val = intent.get("filter_value", "")
         validate_col(col)
-        cols   = ", ".join(intent_cfg["select_columns"])
-        order  = "over_all_progress_percentages DESC"
+        cols   = build_cols()
+        order  = intent_cfg.get("order_by", "")
+        order_clause = f" ORDER BY {order}" if order else ""
         if col and val:
-            return (
-                f"SELECT {cols} FROM {_ALLOWED_TABLE} "
-                f"WHERE {col} ILIKE %(val)s ORDER BY {order} LIMIT {limit}",
-                {"val": f"%{val}%"},
-            )
-        return f"SELECT {cols} FROM {_ALLOWED_TABLE} ORDER BY {order} LIMIT {limit}", {}
+            return (f"SELECT {cols} FROM {table} WHERE {col} ILIKE %(val)s{order_clause} LIMIT {limit}",
+                    {"val": f"%{val}%"})
+        return f"SELECT {cols} FROM {table}{order_clause} LIMIT {limit}", {}
 
-    if name == "rig_summary":
-        order = "avg_progress_pct DESC" if intent.get("order_by") == "progress" else "well_count DESC"
-        return (
-            f"SELECT rig_no, COUNT(*) AS well_count, "
-            f"ROUND(AVG(over_all_progress_percentages)::numeric * 100, 1) AS avg_progress_pct "
-            f"FROM {_ALLOWED_TABLE} GROUP BY rig_no ORDER BY {order} LIMIT {limit}",
-            {},
-        )
-
-    if name == "progress_summary":
-        group        = intent.get("group_by", "")
-        allowed_grp  = set(intent_cfg.get("allowed_group_by", []))
-        if group and group not in allowed_grp:
-            raise ValueError(
-                f"group_by '{group}' not allowed. "
-                f"Allowed values: {sorted(allowed_grp)} — see config/sql_config.yaml."
-            )
+    # ── group_by ───────────────────────────────────────────────────────────────
+    if sql_type == "group_by":
+        group       = intent.get("group_by", intent_cfg.get("default_group_by", ""))
+        allowed_grp = set(intent_cfg.get("allowed_group_by", []))
+        if group and allowed_grp and group not in allowed_grp:
+            raise ValueError(f"group_by '{group}' not allowed: {sorted(allowed_grp)}")
+        agg_col = intent_cfg.get("aggregate_column", "")
+        if group and agg_col:
+            return (f"SELECT {group}, COUNT(*) AS count, "
+                    f"ROUND(AVG({agg_col})::numeric * 100, 1) AS avg_pct "
+                    f"FROM {table} GROUP BY {group} ORDER BY avg_pct DESC LIMIT {limit}", {})
         if group:
-            return (
-                f"SELECT {group}, COUNT(*) AS well_count, "
-                f"ROUND(AVG(over_all_progress_percentages)::numeric * 100, 1) AS avg_progress_pct "
-                f"FROM {_ALLOWED_TABLE} GROUP BY {group} "
-                f"ORDER BY avg_progress_pct DESC LIMIT {limit}",
-                {},
-            )
-        return (
-            f"SELECT COUNT(*) AS total_wells, "
-            f"ROUND(AVG(over_all_progress_percentages)::numeric * 100, 1) AS avg_progress_pct, "
-            f"ROUND(MIN(over_all_progress_percentages)::numeric * 100, 1) AS min_progress_pct, "
-            f"ROUND(MAX(over_all_progress_percentages)::numeric * 100, 1) AS max_progress_pct "
-            f"FROM {_ALLOWED_TABLE}",
-            {},
-        )
+            return (f"SELECT {group}, COUNT(*) AS count FROM {table} "
+                    f"WHERE {group} IS NOT NULL GROUP BY {group} ORDER BY count DESC LIMIT {limit}", {})
+        if agg_col:
+            return (f"SELECT COUNT(*) AS total, "
+                    f"ROUND(AVG({agg_col})::numeric * 100, 1) AS avg_pct, "
+                    f"ROUND(MIN({agg_col})::numeric * 100, 1) AS min_pct, "
+                    f"ROUND(MAX({agg_col})::numeric * 100, 1) AS max_pct "
+                    f"FROM {table}", {})
+        return f"SELECT COUNT(*) AS total FROM {table}", {}
 
-    if name == "top_wells":
+    # ── count_by_column ────────────────────────────────────────────────────────
+    if sql_type == "count_by_column":
+        grp_col = intent_cfg.get("group_column", "")
+        if not grp_col:
+            raise ValueError(f"Intent '{name}' missing group_column in sql_config.yaml")
+        return (f"SELECT {grp_col}, COUNT(*) AS count FROM {table} "
+                f"WHERE {grp_col} IS NOT NULL GROUP BY {grp_col} ORDER BY count DESC", {})
+
+    # ── ranked ─────────────────────────────────────────────────────────────────
+    if sql_type == "ranked":
+        rank_col = intent_cfg.get("rank_column", "")
+        if not rank_col:
+            raise ValueError(f"Intent '{name}' missing rank_column in sql_config.yaml")
         direction = intent.get("direction", "top").lower()
-        order     = "DESC" if direction == "top" else "ASC"
-        cols      = ", ".join(intent_cfg["select_columns"])
-        return (
-            f"SELECT {cols}, "
-            f"ROUND(over_all_progress_percentages::numeric * 100, 1) AS progress_pct "
-            f"FROM {_ALLOWED_TABLE} WHERE over_all_progress_percentages IS NOT NULL "
-            f"ORDER BY over_all_progress_percentages {order} LIMIT {limit}",
-            {},
-        )
+        order = "DESC" if direction == "top" else "ASC"
+        cols  = build_cols()
+        return (f"SELECT {cols} FROM {table} "
+                f"WHERE {rank_col} IS NOT NULL ORDER BY {rank_col} {order} LIMIT {limit}", {})
 
-    if name == "status_breakdown":
+    # ── status_breakdown ───────────────────────────────────────────────────────
+    if sql_type == "status_breakdown":
         allowed_sc = set(intent_cfg.get("allowed_status_columns", []))
-        col = intent.get(
-            "status_column",
-            next(iter(allowed_sc), "location_preparation_status_in_progress_completed"),
-        )
-        if col not in allowed_sc:
-            raise ValueError(
-                f"status_column '{col}' not allowed. "
-                f"Choose from: {sorted(allowed_sc)} — see config/sql_config.yaml."
-            )
-        return (
-            f"SELECT {col} AS status, COUNT(*) AS well_count "
-            f"FROM {_ALLOWED_TABLE} WHERE {col} IS NOT NULL "
-            f"GROUP BY {col} ORDER BY well_count DESC",
-            {},
-        )
+        col = intent.get("status_column", next(iter(allowed_sc), ""))
+        if allowed_sc and col not in allowed_sc:
+            raise ValueError(f"status_column '{col}' not allowed: {sorted(allowed_sc)}")
+        if not col:
+            raise ValueError(f"Intent '{name}' requires a status_column parameter.")
+        return (f"SELECT {col} AS status, COUNT(*) AS count FROM {table} "
+                f"WHERE {col} IS NOT NULL GROUP BY {col} ORDER BY count DESC", {})
 
-    if name == "well_detail":
-        cols        = ", ".join(intent_cfg["select_columns"])
-        well_name   = intent.get("well_name", "")
-        pdo_well_id = intent.get("pdo_well_id", "")
-        if well_name:
-            return (
-                f"SELECT {cols} FROM {_ALLOWED_TABLE} "
-                f"WHERE well_name_after_spud ILIKE %(name)s LIMIT 5",
-                {"name": f"%{well_name}%"},
-            )
-        if pdo_well_id:
-            return (
-                f"SELECT {cols} FROM {_ALLOWED_TABLE} "
-                f"WHERE pdo_well_id = %(id)s LIMIT 5",
-                {"id": int(pdo_well_id)},
-            )
-        raise ValueError("well_detail requires well_name or pdo_well_id.")
-
-    if name == "progress_range":
-        # Convert percent values → 0-1 decimal if the LLM sends them as 50/80 instead of 0.5/0.8
+    # ── range ──────────────────────────────────────────────────────────────────
+    if sql_type == "range":
+        range_col = intent_cfg.get("range_column", "")
+        if not range_col:
+            raise ValueError(f"Intent '{name}' missing range_column in sql_config.yaml")
         raw_min = float(intent.get("min_pct", intent.get("min_value", 0)))
         raw_max = float(intent.get("max_pct", intent.get("max_value", 100)))
         min_val = raw_min / 100 if raw_min > 1 else raw_min
         max_val = raw_max / 100 if raw_max > 1 else raw_max
-        return (
-            f"SELECT COUNT(*) AS well_count, "
-            f"ROUND(MIN(over_all_progress_percentages)::numeric*100,1) AS min_pct, "
-            f"ROUND(MAX(over_all_progress_percentages)::numeric*100,1) AS max_pct "
-            f"FROM {_ALLOWED_TABLE} "
-            f"WHERE over_all_progress_percentages BETWEEN %(min_val)s AND %(max_val)s",
-            {"min_val": min_val, "max_val": max_val},
-        )
+        return (f"SELECT COUNT(*) AS count, "
+                f"ROUND(MIN({range_col})::numeric*100,1) AS min_pct, "
+                f"ROUND(MAX({range_col})::numeric*100,1) AS max_pct "
+                f"FROM {table} WHERE {range_col} BETWEEN %(min_val)s AND %(max_val)s",
+                {"min_val": min_val, "max_val": max_val})
 
-    if name == "activity_lookup":
-        act_cfg    = intent_cfg                         # loaded from config
-        act_table  = act_cfg.get("table", "activity_master")
-        cols       = ", ".join(act_cfg["select_columns"])
-        code       = intent.get("activity_code", "").strip()
-        keyword    = intent.get("keyword", "").strip()
-        discipline = intent.get("discipline", "").strip()
-        if code:
-            return (
-                f"SELECT {cols} FROM {act_table} "
-                f"WHERE activity_code ILIKE %(code)s LIMIT {limit}",
-                {"code": f"%{code}%"},
-            )
-        if discipline:
-            return (
-                f"SELECT {cols} FROM {act_table} "
-                f"WHERE discipline ILIKE %(disc)s ORDER BY activity_code LIMIT {limit}",
-                {"disc": f"%{discipline}%"},
-            )
-        if keyword:
-            return (
-                f"SELECT {cols} FROM {act_table} "
-                f"WHERE activity_description ILIKE %(kw)s "
-                f"OR activity_group_description ILIKE %(kw)s "
-                f"ORDER BY activity_code LIMIT {limit}",
-                {"kw": f"%{keyword}%"},
-            )
-        return (
-            f"SELECT {cols} FROM {act_table} ORDER BY activity_code LIMIT {limit}",
-            {},
-        )
+    # ── detail ─────────────────────────────────────────────────────────────────
+    if sql_type == "detail":
+        id_col   = intent_cfg.get("id_column", "")
+        name_col = intent_cfg.get("name_column", "")
+        id_val   = str(intent.get("pdo_well_id", intent.get("well_id",
+                       intent.get("id_value", "")))).strip()
+        name_val = str(intent.get("well_name", intent.get("name_value", ""))).strip()
+        cols     = build_cols()
+        if id_val and id_col:
+            try:
+                return (f"SELECT {cols} FROM {table} WHERE {id_col} = %(id)s LIMIT 5",
+                        {"id": int(id_val)})
+            except ValueError:
+                return (f"SELECT {cols} FROM {table} WHERE {id_col}::text ILIKE %(id)s LIMIT 5",
+                        {"id": f"%{id_val}%"})
+        if name_val and name_col:
+            return (f"SELECT {cols} FROM {table} WHERE {name_col} ILIKE %(name)s LIMIT 5",
+                    {"name": f"%{name_val}%"})
+        raise ValueError(f"Intent '{name}' requires a lookup value (id or name).")
 
-    if name == "nimr_detail":
-        nimr_cfg  = intent_cfg
-        nimr_tbl  = nimr_cfg.get("table", "wmr_nimr")
-        cols      = ", ".join(nimr_cfg["select_columns"])
-        pdo_id    = str(intent.get("pdo_well_id", "")).strip()
-        rig       = intent.get("rig_no", "").strip()
-        buf_stat  = intent.get("buffer_status", "").strip()
-        loc       = intent.get("well_location", "").strip()
-        if pdo_id:
-            return (
-                f"SELECT {cols} FROM {nimr_tbl} "
-                f"WHERE pdo_well_id::text = %(pdo_id)s LIMIT {limit}",
-                {"pdo_id": pdo_id},
-            )
-        if rig and buf_stat:
-            return (
-                f"SELECT {cols} FROM {nimr_tbl} "
-                f"WHERE rig_no ILIKE %(rig)s AND buffer_status ILIKE %(buf)s LIMIT {limit}",
-                {"rig": f"%{rig}%", "buf": f"%{buf_stat}%"},
-            )
-        if rig:
-            return (
-                f"SELECT {cols} FROM {nimr_tbl} "
-                f"WHERE rig_no ILIKE %(rig)s ORDER BY pdo_well_id LIMIT {limit}",
-                {"rig": f"%{rig}%"},
-            )
-        if buf_stat:
-            return (
-                f"SELECT {cols} FROM {nimr_tbl} "
-                f"WHERE buffer_status ILIKE %(buf)s ORDER BY rig_no LIMIT {limit}",
-                {"buf": f"%{buf_stat}%"},
-            )
-        if loc:
-            return (
-                f"SELECT {cols} FROM {nimr_tbl} "
-                f"WHERE well_location ILIKE %(loc)s LIMIT {limit}",
-                {"loc": f"%{loc}%"},
-            )
-        return (
-            f"SELECT {cols} FROM {nimr_tbl} ORDER BY rig_no LIMIT {limit}",
-            {},
-        )
+    # ── multi_filter ───────────────────────────────────────────────────────────
+    if sql_type == "multi_filter":
+        cols       = build_cols()
+        conditions: list[str] = []
+        params:     dict      = {}
+        for fc in intent_cfg.get("allowed_filter_columns", []):
+            val = str(intent.get(fc, "")).strip()
+            if not val:
+                continue
+            col_type = live_col_map.get(fc, "text")
+            if val.isdigit():
+                if any(t in col_type for t in ("int", "numeric", "double", "real")):
+                    conditions.append(f"{fc} = %({fc})s")
+                    params[fc] = int(val)
+                else:
+                    conditions.append(f"{fc}::text = %({fc})s")
+                    params[fc] = val
+            else:
+                conditions.append(f"{fc} ILIKE %({fc})s")
+                params[fc] = f"%{val}%"
+        where        = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+        order        = intent_cfg.get("order_by", "")
+        order_clause = f" ORDER BY {order}" if order else ""
+        return f"SELECT {cols} FROM {table}{where}{order_clause} LIMIT {limit}", params
 
-    if name == "nimr_buffer_count":
-        nimr_tbl = intent_cfg.get("table", "wmr_nimr")
-        return (
-            f"SELECT buffer_status, COUNT(*) AS well_count "
-            f"FROM {nimr_tbl} "
-            f"GROUP BY buffer_status ORDER BY well_count DESC",
-            {},
-        )
-
-    # ── Generic intents: table and columns come 100% from sql_config.yaml ─────
-
-    if name == "crew_lookup":
-        tbl  = intent_cfg.get("table", "crew_master")
-        cols = ", ".join(intent_cfg["select_columns"])
-        crew_name = intent.get("crew_group_name", intent.get("keyword", "")).strip()
-        pg_code   = intent.get("pg_eg_code", "").strip()
-        if pg_code:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE pg_eg_code ILIKE %(code)s LIMIT {limit}",
-                {"code": f"%{pg_code}%"},
-            )
-        if crew_name:
-            return (
-                f"SELECT {cols} FROM {tbl} "
-                f"WHERE crew_group_name ILIKE %(kw)s "
-                f"OR crew_formation ILIKE %(kw)s ORDER BY crew_group_name LIMIT {limit}",
-                {"kw": f"%{crew_name}%"},
-            )
-        return f"SELECT {cols} FROM {tbl} ORDER BY crew_group_name LIMIT {limit}", {}
-
-    if name == "well_master_lookup":
-        tbl  = intent_cfg.get("table", "well_master")
-        cols = ", ".join(intent_cfg["select_columns"])
-        well_id       = str(intent.get("well_id", "")).strip()
-        field         = intent.get("field", "").strip()
-        rig           = intent.get("rig_no", "").strip()
-        well_function = intent.get("well_function", "").strip()
-        if well_id and well_id.isdigit():
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE well_id = %(id)s LIMIT 5",
-                {"id": int(well_id)},
-            )
-        if field:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE field ILIKE %(field)s ORDER BY well_id LIMIT {limit}",
-                {"field": f"%{field}%"},
-            )
-        if rig:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE rig_no ILIKE %(rig)s LIMIT {limit}",
-                {"rig": f"%{rig}%"},
-            )
-        if well_function:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE well_function ILIKE %(fn)s LIMIT {limit}",
-                {"fn": f"%{well_function}%"},
-            )
-        return f"SELECT {cols} FROM {tbl} ORDER BY field, well_id LIMIT {limit}", {}
-
-    if name == "field_wells":
-        tbl  = intent_cfg.get("table", "operational_wells")
-        cols = ", ".join(intent_cfg["select_columns"])
-        field        = intent.get("field", "").strip()
-        rig          = intent.get("rig_no", "").strip()
-        well_function = intent.get("well_function", "").strip()
-        if field:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE field ILIKE %(field)s ORDER BY rig_no LIMIT {limit}",
-                {"field": f"%{field}%"},
-            )
-        if rig:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE rig_no ILIKE %(rig)s ORDER BY field LIMIT {limit}",
-                {"rig": f"%{rig}%"},
-            )
-        if well_function:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE well_function ILIKE %(fn)s LIMIT {limit}",
-                {"fn": f"%{well_function}%"},
-            )
-        return (
-            f"SELECT field, COUNT(*) AS well_count FROM {tbl} "
-            f"WHERE field IS NOT NULL GROUP BY field ORDER BY well_count DESC LIMIT {limit}",
-            {},
-        )
-
-    if name == "milestone_status":
-        tbl     = intent_cfg.get("table", "operational_tasks")
-        cols    = ", ".join(intent_cfg["select_columns"])
-        well_id = str(intent.get("well_id", "")).strip()
-        code    = intent.get("code", "").strip()
-        task_type = intent.get("type", "").strip().upper()
-        if well_id:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE well_id = %(wid)s ORDER BY code LIMIT {limit}",
-                {"wid": well_id},
-            )
-        if code:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE code ILIKE %(code)s LIMIT {limit}",
-                {"code": f"%{code}%"},
-            )
-        if task_type in ("A", "M"):
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE type = %(typ)s "
-                f"AND progress = 1.0 ORDER BY well_id LIMIT {limit}",
-                {"typ": task_type},
-            )
-        return (
-            f"SELECT {cols} FROM {tbl} WHERE progress = 1.0 ORDER BY well_id LIMIT {limit}",
-            {},
-        )
-
-    if name == "kpi_lookup":
-        tbl  = intent_cfg.get("table", "well_delivery_kpis")
-        cols = ", ".join(intent_cfg["select_columns"])
-        keyword = intent.get("keyword", "").strip()
-        if keyword:
-            return (
-                f"SELECT {cols} FROM {tbl} WHERE kpis ILIKE %(kw)s LIMIT {limit}",
-                {"kw": f"%{keyword}%"},
-            )
-        return f"SELECT {cols} FROM {tbl} ORDER BY sr_no LIMIT {limit}", {}
-
-    raise ValueError(f"No SQL template defined for intent '{name}'.")
+    raise ValueError(
+        f"Unknown sql_type '{sql_type}' for intent '{name}'. "
+        f"Valid: count, list, group_by, count_by_column, ranked, "
+        f"status_breakdown, range, detail, multi_filter"
+    )
 
 
-_SQL_EXCLUDE_WORDS = {
-    # Workforce / headcount — always RAG
-    "employee", "employees", "workforce", "staff", "headcount",
-    "expat", "national", "nationality", "personnel", "manpower",
-    # Project scope / strategy — always RAG
-    "phase", "scope", "contract", "advantage",
-    # Meeting / qualitative discussion — always RAG
-    "concern", "discussed", "discuss", "transcript", "meeting",
-    "raised", "mentioned", "agenda", "action item",
-    # Conceptual milestone definitions — always RAG (e.g. "what does M-90 mean")
-    # NOTE: "milestone" alone was removed so well-specific milestone status
-    #       queries (e.g. "milestones for well 31722") can route to SQL.
-}
+# Words that force RAG routing — loaded from sql_config.yaml exclude_words list.
+# To add a new exclusion: edit config/sql_config.yaml, no Python changes needed.
+_SQL_EXCLUDE_WORDS: set[str] = set(_SQL_CFG.get("exclude_words", []))
 
 # All fast-path keywords across every intent — used as a secondary SQL trigger
 _ALL_FAST_PATH_KWS: set[str] = set()
@@ -1700,7 +1518,8 @@ def ask(req: AskRequest, request: Request):
 
         print(f"[ask] Routing to Text-to-SQL: {clean_query!r}")
         parsed  = sql_answer(clean_query)
-        sources = ["POC 1 WellMonitoringReport_Feb_Data_VERIFIED.csv"]
+        # Source comes from the intent config via sql_answer → parsed["source_citation"]
+        sources = [s.strip() for s in parsed.get("source_citation", _SOURCE_FILE).split(",") if s.strip()]
 
         direct = parsed.get("direct_answer", "").strip()
         confidence = parsed.get("confidence_level", "").lower()
