@@ -189,53 +189,65 @@ def load_to_sql(conn, df: pd.DataFrame, table_name: str) -> int:
 # Workforce fact extraction (reuses logic from script 07)
 # ---------------------------------------------------------------------------
 def extract_workforce_facts(src: dict) -> list[dict]:
+    """Extract live headcount facts from the workforce Excel.
+    All column names and labels come from the src dict (sql_config.yaml workforce entry)."""
     import hashlib
     fpath = DATA_DIR / src.get("dir", "EXCEL") / src.get("source_file", "")
     if not fpath.exists():
         print(f"    [warn] Workforce file not found: {fpath}")
         return []
 
+    # Column names and category labels from config — no hardcoding
+    sheet      = src.get("sheet",             "Base Data")
+    chart_col  = src.get("dedup_chart_col",   "Chart List")
+    chart_val  = src.get("dedup_chart_value", "Nationality Wise Employee Count")
+    nat_col    = src.get("nationality_col",   "Nationality")
+    expat_lbl  = src.get("expat_label",       "Expats")
+    cat_col    = src.get("category_col",      "POS Category")
+    labour_lbl = src.get("labour_label",      "Labour")
+    staff_lbl  = src.get("staff_label",       "Staff")
+    category   = src.get("name",              "workforce")
+
     print(f"    Reading workforce data from '{src.get('source_file', '')}' …")
     try:
-        df = pd.read_excel(fpath, sheet_name="Base Data", header=0)
+        df = pd.read_excel(fpath, sheet_name=sheet, header=0)
     except Exception as e:
         print(f"    [error] {e}")
         return []
 
-    CHART_COL = "Chart List"
-    TARGET    = "Nationality Wise Employee Count"
-    NAT_COL   = "Nationality"
-    CAT_COL   = "POS Category"
-    ATNM_COL  = "ATNM / Hired"
-
-    if CHART_COL not in df.columns:
-        print(f"    [warn] 'Chart List' column not found in Base Data sheet.")
+    if chart_col not in df.columns:
+        print(f"    [warn] '{chart_col}' column not found in '{sheet}' sheet.")
         return []
 
-    subset = df[df[CHART_COL] == TARGET].copy()
+    subset = df[df[chart_col] == chart_val].copy()
     if subset.empty:
-        print(f"    [warn] No rows for '{TARGET}' in Base Data.")
+        print(f"    [warn] No rows for '{chart_val}' in '{sheet}'.")
         return []
 
-    nat_counts = subset[NAT_COL].value_counts()
-    expats     = int(nat_counts.get("Expats", 0))
-    nationals  = int(subset[NAT_COL].str.lower().ne("expats").sum())
-    cat_counts = subset[CAT_COL].value_counts() if CAT_COL in subset else {}
-    labour     = int(cat_counts.get("Labour", 0)) if hasattr(cat_counts, 'get') else 0
-    staff      = int(cat_counts.get("Staff",  0)) if hasattr(cat_counts, 'get') else 0
-    total      = len(subset)
+    expats    = int(subset[nat_col].value_counts().get(expat_lbl, 0))
+    nationals = int(subset[nat_col].str.lower().ne(expat_lbl.lower()).sum())
+    cat_vc    = subset[cat_col].value_counts() if cat_col in subset.columns else {}
+    labour    = int(cat_vc.get(labour_lbl, 0)) if hasattr(cat_vc, "get") else 0
+    staff     = int(cat_vc.get(staff_lbl,  0)) if hasattr(cat_vc, "get") else 0
+    total     = len(subset)
 
-    print(f"    Extracted — Total:{total:,}  Expats:{expats:,}  Nationals:{nationals:,}  Labour:{labour:,}  Staff:{staff:,}")
+    print(f"    Extracted — Total:{total:,}  Expats:{expats:,}  Nationals:{nationals:,}"
+          f"  Labour:{labour:,}  Staff:{staff:,}")
 
-    m = {"total": total, "expats": expats, "nationals": nationals,
-         "labour": labour, "staff": staff, "source": src["file"]}
-
+    source = src.get("source_file", "")
     raw_facts = [
-        f"AL TASNIM total number of employees: {total:,}. Expat employees {expats:,} and National employees {nationals:,}. Grand Total workforce headcount is {total:,} people.",
-        f"AL TASNIM expat employee count: {expats:,}. Number of expatriate workers employed by AL TASNIM is {expats:,}.",
-        f"AL TASNIM national employee count: {nationals:,}. Number of national / local employees: {nationals:,}.",
-        f"AL TASNIM labour headcount: {labour:,}. Staff headcount: {staff:,}. Combined labour and staff grand total: {total:,}.",
-        f"AL TASNIM workforce summary: Total employees {total:,}. Labour {labour:,}. Staff {staff:,}. Expats {expats:,}. Nationals {nationals:,}.",
+        (f"AL TASNIM total number of employees: {total:,}. "
+         f"Expat employees {expats:,} and National employees {nationals:,}. "
+         f"Grand Total workforce headcount is {total:,} people."),
+        (f"AL TASNIM expat employee count: {expats:,}. "
+         f"Number of expatriate workers employed by AL TASNIM is {expats:,}."),
+        (f"AL TASNIM national employee count: {nationals:,}. "
+         f"Number of national / local employees: {nationals:,}."),
+        (f"AL TASNIM labour headcount: {labour:,}. Staff headcount: {staff:,}. "
+         f"Combined labour and staff grand total: {total:,}."),
+        (f"AL TASNIM workforce summary: Total employees {total:,}. "
+         f"Labour {labour:,}. Staff {staff:,}. "
+         f"Expats {expats:,}. Nationals {nationals:,}."),
     ]
 
     chunks = []
@@ -246,10 +258,10 @@ def extract_workforce_facts(src: dict) -> list[dict]:
             "content":      text,
             "content_hash": h,
             "metadata": {
-                "source":        src["file"],
-                "document_type": "fact",
-                "category":      "workforce",
-                "is_fact":       True,
+                "source":         source,
+                "document_type":  "fact",
+                "category":       category,
+                "is_fact":        True,
                 "auto_extracted": True,
             },
         })

@@ -6,6 +6,11 @@ default_table: well_monitoring
 default_source_file: POC 1 WellMonitoringReport_Feb_Data_VERIFIED.csv
 max_rows: 50
 
+# ── Extraction patterns (used by Python — do not hardcode these in .py files) ──
+# rig_id: regex that matches a rig identifier in a user question
+patterns:
+  rig_id: '\b(swer\w+|swerig\w+)\b'
+
 # ── Routing: words that force RAG instead of SQL ──────────────────────────────
 # Add any domain term that should always go to document retrieval, never SQL.
 exclude_words:
@@ -226,6 +231,20 @@ tables:
     dir: EXCEL
     type: workforce
     description: AL TASNIM workforce dashboard — headcount by nationality, category, and employment type.
+    # Extraction schema — every column name and category label from the Excel file.
+    # Update these here if the Excel structure changes; no Python changes needed.
+    sheet: Base Data
+    dedup_chart_col: "Chart List"
+    dedup_chart_value: "Nationality Wise Employee Count"
+    nationality_col: "Nationality"
+    expat_label: "Expats"
+    category_col: "POS Category"
+    employment_col: "ATNM / Hired"
+    id_col: "Personnel Number"
+    labour_label: "Labour"
+    staff_label: "Staff"
+    atnm_label: "ATNM"
+    hired_label: "Hired"
 
   # ── Legacy tables (loaded via separate pipeline — ingest skips these) ─────────
   - name: operational_wells
@@ -338,6 +357,13 @@ intents:
     - activity master
     - norm for activity
     fast_path_extract: activity_code
+    # Known values for the discipline column — used to extract the discipline from
+    # a user question without hardcoding them in Python. Update if new disciplines added.
+    known_discipline_values:
+    - civil
+    - mechanical
+    - electrical
+    - e&i
     select_columns:
     - discipline
     - activity_group_description

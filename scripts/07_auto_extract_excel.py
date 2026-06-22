@@ -42,14 +42,27 @@ if _env_path.exists():
             _v = _v.split("#")[0].strip()
             os.environ.setdefault(_k.strip(), _v)
 
+import yaml
+
 HERE        = Path(__file__).parent.parent
 DATA_DIR    = HERE / "data" / "EXCEL"
 PG_URL      = os.getenv("PG_URL",      "postgresql://abhay@/altasnim?host=/var/run/postgresql")
 PG_TABLE    = os.getenv("PG_TABLE",    "rag_chunks")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-m3")
 
-# Category used in fact metadata — always "workforce" so the server can filter by it
-FACT_CATEGORY = "workforce"
+# Load workforce extraction config from sql_config.yaml so no column names or
+# category labels are hardcoded in Python.
+def _load_workforce_cfg() -> dict:
+    sql_cfg_path = HERE / "config" / "sql_config.yaml"
+    with sql_cfg_path.open() as f:
+        cfg = yaml.safe_load(f)
+    for t in cfg.get("tables", []):
+        if t.get("type") == "workforce":
+            return t
+    return {}
+
+_WF_CFG = _load_workforce_cfg()
+FACT_CATEGORY = _WF_CFG.get("name", "workforce")
 
 
 # ---------------------------------------------------------------------------
@@ -66,13 +79,14 @@ def find_excel() -> Path:
             f"WORKFORCE_EXCEL='{filename}' set in .env but file not found at:\n  {path}\n"
             "Update WORKFORCE_EXCEL in .env to the correct filename."
         )
-    # Fallback: find the xlsx that has a 'Base Data' sheet
-    print("  WORKFORCE_EXCEL not set — scanning for file with 'Base Data' sheet …")
+    # Fallback: find the xlsx that has the configured sheet name
+    sheet_name = _WF_CFG.get("sheet", "Base Data")
+    print(f"  WORKFORCE_EXCEL not set — scanning for file with '{sheet_name}' sheet …")
     import openpyxl
     for xlsx in sorted(DATA_DIR.glob("*.xlsx"), key=lambda p: p.stat().st_size, reverse=True):
         try:
             wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
-            if "Base Data" in wb.sheetnames:
+            if sheet_name in wb.sheetnames:
                 wb.close()
                 print(f"  Found : {xlsx.name}  ({xlsx.stat().st_size / 1024:.0f} KB)")
                 return xlsx
@@ -80,7 +94,7 @@ def find_excel() -> Path:
         except Exception:
             continue
     raise FileNotFoundError(
-        "No Excel file with a 'Base Data' sheet found in data/EXCEL/.\n"
+        f"No Excel file with a '{sheet_name}' sheet found in data/EXCEL/.\n"
         "Set WORKFORCE_EXCEL=<filename> in .env to specify it explicitly."
     )
 
@@ -90,53 +104,49 @@ def find_excel() -> Path:
 # ---------------------------------------------------------------------------
 def extract_workforce(excel_path: Path) -> dict:
     """
-    Reads the Base Data sheet and computes:
-      - total unique employees (by Personnel Number)
-      - breakdown by Nationality (Expats / National)
-      - breakdown by POS Category (Labour / Staff)
-      - breakdown by ATNM / Hired
-
-    Returns a dict with all computed values.
+    Reads the workforce sheet and computes headcount breakdowns.
+    All column names and category labels come from sql_config.yaml (workforce table entry).
     """
-    print("  Reading Base Data sheet …")
-    df = pd.read_excel(excel_path, sheet_name="Base Data", header=0)
+    sheet      = _WF_CFG.get("sheet",              "Base Data")
+    chart_col  = _WF_CFG.get("dedup_chart_col",    "Chart List")
+    chart_val  = _WF_CFG.get("dedup_chart_value",  "Nationality Wise Employee Count")
+    nat_col    = _WF_CFG.get("nationality_col",    "Nationality")
+    expat_lbl  = _WF_CFG.get("expat_label",        "Expats")
+    cat_col    = _WF_CFG.get("category_col",       "POS Category")
+    emp_col    = _WF_CFG.get("employment_col",     "ATNM / Hired")
+    id_col     = _WF_CFG.get("id_col",             "Personnel Number")
+    labour_lbl = _WF_CFG.get("labour_label",       "Labour")
+    staff_lbl  = _WF_CFG.get("staff_label",        "Staff")
+    atnm_lbl   = _WF_CFG.get("atnm_label",         "ATNM")
+    hired_lbl  = _WF_CFG.get("hired_label",        "Hired")
 
-    # The Base Data sheet repeats each employee once per chart type.
-    # We filter to ONE chart type so every employee appears exactly once.
-    CHART_COL  = "Chart List"
-    TARGET     = "Nationality Wise Employee Count"
-    NAT_COL    = "Nationality"
-    CAT_COL    = "POS Category"
-    ATNM_COL   = "ATNM / Hired"
-    STATUS_COL = "Employee Status Text"
-    ID_COL     = "Personnel Number"
+    print(f"  Reading '{sheet}' sheet …")
+    df = pd.read_excel(excel_path, sheet_name=sheet, header=0)
 
-    # Verify required columns exist
-    missing = [c for c in [CHART_COL, NAT_COL, CAT_COL, ATNM_COL, ID_COL]
+    # The sheet repeats each employee once per chart type.
+    # Filter to one chart type so every employee appears exactly once.
+    missing = [c for c in [chart_col, nat_col, cat_col, emp_col, id_col]
                if c not in df.columns]
     if missing:
-        raise ValueError(f"Missing columns in Base Data: {missing}")
+        raise ValueError(f"Missing columns in '{sheet}': {missing}")
 
-    subset = df[df[CHART_COL] == TARGET].copy()
-    print(f"  Rows for '{TARGET}': {len(subset):,}")
+    subset = df[df[chart_col] == chart_val].copy()
+    print(f"  Rows for '{chart_val}': {len(subset):,}")
 
-    # --- Nationality breakdown ---
-    nat_counts = subset[NAT_COL].value_counts()
-    expats    = int(nat_counts.get("Expats",   0))
-    nationals = int(nat_counts.get("National", 0))
-    # Some files use "Omani" or other labels — bucket everything non-Expat as National
-    all_national = int(subset[NAT_COL].str.lower().ne("expats").sum())
-    nationals = all_national  # use the broader count
+    # Nationality breakdown — bucket everything non-expat as national
+    nat_counts = subset[nat_col].value_counts()
+    expats     = int(nat_counts.get(expat_lbl, 0))
+    nationals  = int(subset[nat_col].str.lower().ne(expat_lbl.lower()).sum())
 
-    # --- POS Category breakdown (Labour vs Staff) ---
-    cat_counts = subset[CAT_COL].value_counts()
-    labour = int(cat_counts.get("Labour", 0))
-    staff  = int(cat_counts.get("Staff",  0))
+    # Category breakdown
+    cat_counts = subset[cat_col].value_counts()
+    labour = int(cat_counts.get(labour_lbl, 0))
+    staff  = int(cat_counts.get(staff_lbl,  0))
 
-    # --- ATNM vs Hired ---
-    hire_counts = subset[ATNM_COL].value_counts()
-    atnm  = int(hire_counts.get("ATNM",  0))
-    hired = int(hire_counts.get("Hired", 0))
+    # Employment type breakdown
+    hire_counts = subset[emp_col].value_counts()
+    atnm  = int(hire_counts.get(atnm_lbl,  0))
+    hired = int(hire_counts.get(hired_lbl, 0))
 
     total = len(subset)
 

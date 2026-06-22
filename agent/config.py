@@ -97,3 +97,13 @@ def prompts_cfg() -> Dict[str, Any]:
 def llm_fallback_model() -> str:
     """Return the absolute last-resort model name from config (used when env var and tier model are both empty)."""
     return get_config()["llm"].get("fallback_model", "llama3.1:8b")
+
+
+def analytics_cfg() -> Dict[str, Any]:
+    """Return analytics thresholds and progress column names."""
+    return get_config().get("analytics", {})
+
+
+def next_actions_cfg() -> Dict[str, Any]:
+    """Return recommended next-action string templates."""
+    return get_config().get("next_actions", {})

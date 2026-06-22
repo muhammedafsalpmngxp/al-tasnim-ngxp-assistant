@@ -44,7 +44,7 @@ except ImportError:
     pass
 
 from .cache import cache_get, cache_put
-from .config import human_review_cfg, validation_cfg
+from .config import human_review_cfg, next_actions_cfg, validation_cfg
 from .models import AgentState, RouteType, UserRole
 from .router import check_clarification, route_query
 from .tools import analytics_tool, rag_tool, recommend_tool, sql_tool
@@ -129,22 +129,15 @@ def _build_next_action(
     confidence: str,
     sql_res:    Optional[Dict[str, Any]],
 ) -> str:
-    """Return the recommended next-action string for the given route."""
+    """Return the recommended next-action string for the given route.
+    All text comes from agent_config.yaml next_actions — nothing hardcoded here."""
+    na = next_actions_cfg()
     if route == "recommend":
-        return (
-            "Review the recommendation, obtain required approvals,"
-            " and log the action in ACC."
-        )
+        return na.get("recommend", "")
     if route in ("analytics", "multi") and confidence == "Low":
-        return (
-            "Verify the data in ACC daily report and confirm"
-            " with the field supervisor."
-        )
+        return na.get("analytics_low_confidence", "")
     if route == "sql" and not sql_res:
-        return (
-            "Check that the database is populated with the latest data"
-            " and re-run the query."
-        )
+        return na.get("sql_no_data", "")
     return ""
 
 

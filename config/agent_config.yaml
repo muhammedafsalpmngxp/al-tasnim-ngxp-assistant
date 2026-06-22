@@ -279,6 +279,31 @@ prompts:
 
     Respond with ONLY the single category word, nothing else.
 
+# ── Analytics tool ────────────────────────────────────────────────────────────
+# All thresholds and column names used by analytics_tool live here.
+# Update these when the DB schema or KPI definitions change — no Python edits needed.
+analytics:
+  # Column names tried (in order) to extract a progress value from a SQL result row.
+  progress_columns:
+    - over_all_progress_percentages
+    - progress
+    - cum_progress_for_this_week
+  completed_threshold: 100     # progress >= this → counted as completed
+  behind_threshold: 50         # progress < this → counted as behind schedule
+  delay_risk_high_pct: 0.5     # fraction behind > this → High delay risk
+  delay_risk_medium_pct: 0.25  # fraction behind > this → Medium delay risk
+
+# ── Recommended next-action strings ──────────────────────────────────────────
+# Shown to the user as the recommended next step. All text lives here — no
+# domain-specific strings are hardcoded in Python.
+next_actions:
+  recommend: >
+    Review the recommendation, obtain required approvals, and log the action in ACC.
+  analytics_low_confidence: >
+    Verify the data in ACC daily report and confirm with the field supervisor.
+  sql_no_data: >
+    Check that the database is populated with the latest data and re-run the query.
+
 # ── Cache ─────────────────────────────────────────────────────────────────────
 cache:
   enabled: true

@@ -632,6 +632,13 @@ for _icfg in _INTENT_CFG.values():
     for _col in _icfg.get("allowed_filter_columns", []):
         _SQL_TRIGGER_WORDS.add(_col.replace("_", " ").lower())
 
+# Rig ID regex and known discipline values — read from sql_config.yaml so Python
+# never needs to know the actual identifier format or domain category names.
+_RIG_ID_PATTERN: str = _SQL_CFG.get("patterns", {}).get("rig_id", r'\b(swer\w+)\b')
+_DISCIPLINE_VALUES: list[str] = (
+    _INTENT_CFG.get("activity_lookup", {}).get("known_discipline_values", [])
+)
+
 
 def _load_live_schema() -> dict[str, list[tuple[str, str]]]:
     """Read column names + data types for every non-system table directly from the DB.
@@ -940,7 +947,11 @@ def _classify_intent(question: str) -> dict:
                 if code_m:
                     intent["activity_code"] = code_m.group(1).upper()
                 else:
-                    disc_m = re.search(r'\b(civil|mechanical|electrical|e&i)\b', q_lower)
+                    if _DISCIPLINE_VALUES:
+                        disc_pat = r'\b(' + '|'.join(re.escape(d) for d in _DISCIPLINE_VALUES) + r')\b'
+                        disc_m = re.search(disc_pat, q_lower)
+                    else:
+                        disc_m = None
                     if disc_m:
                         intent["discipline"] = disc_m.group(1).title()
                     else:
@@ -953,7 +964,7 @@ def _classify_intent(question: str) -> dict:
                 well_id_m = _WELL_ID_RE.search(question)
                 if well_id_m:
                     intent["pdo_well_id"] = well_id_m.group(1)
-                rig_m = re.search(r'\b(swer\w+|swerig\w+)\b', q_lower)
+                rig_m = re.search(_RIG_ID_PATTERN, q_lower)
                 if rig_m:
                     intent["rig_no"] = rig_m.group(1).upper()
             print(f"[sql] Fast-path '{keyword}' → {intent}")

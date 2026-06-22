@@ -41,7 +41,7 @@ except ImportError:
     _AsyncGroq = None  # type: ignore[assignment]
     _HAS_GROQ = False
 
-from .config import llm_cfg, llm_fallback_model, prompts_cfg, rag_service_cfg
+from .config import analytics_cfg, llm_cfg, llm_fallback_model, prompts_cfg, rag_service_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -134,12 +134,13 @@ def _safe_float(val: Any) -> Optional[float]:
 
 
 def _progress_from_row(row: Dict[str, Any]) -> Optional[float]:
-    """Extract the best-available progress value from a SQL result row."""
-    return _safe_float(
-        row.get("over_all_progress_percentages")
-        or row.get("progress")
-        or row.get("cum_progress_for_this_week")
-    )
+    """Extract the best-available progress value from a SQL result row.
+    Column priority order comes from agent_config.yaml analytics.progress_columns."""
+    for col in analytics_cfg().get("progress_columns", ["over_all_progress_percentages", "progress"]):
+        val = _safe_float(row.get(col))
+        if val is not None:
+            return val
+    return None
 
 
 def analytics_tool(sql_result: Dict[str, Any], _query: str = "") -> Dict[str, Any]:
@@ -157,6 +158,12 @@ def analytics_tool(sql_result: Dict[str, Any], _query: str = "") -> Dict[str, An
     progress_vals = [_progress_from_row(r) for r in rows]
     progress_vals = [v for v in progress_vals if v is not None]
 
+    acfg = analytics_cfg()
+    completed_threshold  = acfg.get("completed_threshold",    100)
+    behind_threshold     = acfg.get("behind_threshold",        50)
+    risk_high_pct        = acfg.get("delay_risk_high_pct",    0.5)
+    risk_medium_pct      = acfg.get("delay_risk_medium_pct",  0.25)
+
     metrics: Dict[str, Any] = {}
     if progress_vals:
         total = len(progress_vals)
@@ -164,12 +171,12 @@ def analytics_tool(sql_result: Dict[str, Any], _query: str = "") -> Dict[str, An
         metrics["max_progress"]    = round(max(progress_vals), 2)
         metrics["min_progress"]    = round(min(progress_vals), 2)
         metrics["total_wells"]     = total
-        metrics["completed_wells"] = sum(1 for v in progress_vals if v >= 100)
-        metrics["behind_wells"]    = sum(1 for v in progress_vals if v < 50)
+        metrics["completed_wells"] = sum(1 for v in progress_vals if v >= completed_threshold)
+        metrics["behind_wells"]    = sum(1 for v in progress_vals if v < behind_threshold)
         behind_pct = metrics["behind_wells"] / max(total, 1)
         metrics["delay_risk"] = (
-            "High" if behind_pct > 0.5
-            else "Medium" if behind_pct > 0.25
+            "High" if behind_pct > risk_high_pct
+            else "Medium" if behind_pct > risk_medium_pct
             else "Low"
         )
 
@@ -180,8 +187,8 @@ def analytics_tool(sql_result: Dict[str, Any], _query: str = "") -> Dict[str, An
             f" across {metrics['total_wells']} items"
         )
         lines.append(
-            f"Completed (100%): {metrics['completed_wells']}"
-            f" | Behind (<50%): {metrics['behind_wells']}"
+            f"Completed ({completed_threshold}%): {metrics['completed_wells']}"
+            f" | Behind (<{behind_threshold}%): {metrics['behind_wells']}"
         )
         lines.append(f"Delay risk: {metrics.get('delay_risk', 'Unknown')}")
 
