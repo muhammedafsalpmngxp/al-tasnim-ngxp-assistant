@@ -2,15 +2,17 @@
 """
 Step 9 — Universal Data Ingestion Pipeline.
 
-Reads config/ingest_config.yaml and processes ALL data sources in one run:
+Reads the tables section of config/sql_config.yaml and processes all sources:
   - type: sql       → loads CSV or Excel sheet into a PostgreSQL table
   - type: workforce → extracts live headcount facts from the workforce Excel
-  - type: skip      → logged and skipped
+  - (no type)       → legacy table, skipped by this script
 
 To add a new file:
-  1. Add an entry to config/ingest_config.yaml  (no Python editing)
-  2. Re-run this script
-  3. Restart the server
+  1. Copy it to data/CSV/ or data/EXCEL/
+  2. Add an entry (with type, dir, sheet, header_row) to the tables section
+     of config/sql_config.yaml  — no Python editing needed
+  3. Re-run this script
+  4. Restart the server
 
 Run:
     conda activate v12
@@ -42,7 +44,6 @@ if _env_path.exists():
 
 HERE       = Path(__file__).parent.parent
 DATA_DIR   = HERE / "data"
-CFG_FILE   = HERE / "config" / "ingest_config.yaml"
 SQL_CFG    = HERE / "config" / "sql_config.yaml"
 PG_URL     = os.getenv("PG_URL", "postgresql://abhay@/altasnim?host=/var/run/postgresql")
 PG_TABLE   = os.getenv("PG_TABLE", "rag_chunks")
@@ -98,7 +99,7 @@ def get_conn() -> psycopg2.extensions.connection:
 # Read a file (CSV or Excel) into a DataFrame
 # ---------------------------------------------------------------------------
 def read_source(src: dict) -> pd.DataFrame | None:
-    fpath = DATA_DIR / src["dir"] / src["file"]
+    fpath = DATA_DIR / src.get("dir", "CSV") / src.get("source_file", "")
     if not fpath.exists():
         print(f"    [warn] File not found — skipping: {fpath}")
         return None
@@ -189,12 +190,12 @@ def load_to_sql(conn, df: pd.DataFrame, table_name: str) -> int:
 # ---------------------------------------------------------------------------
 def extract_workforce_facts(src: dict) -> list[dict]:
     import hashlib
-    fpath = DATA_DIR / src["dir"] / src["file"]
+    fpath = DATA_DIR / src.get("dir", "EXCEL") / src.get("source_file", "")
     if not fpath.exists():
         print(f"    [warn] Workforce file not found: {fpath}")
         return []
 
-    print(f"    Reading workforce data from '{src['file']}' …")
+    print(f"    Reading workforce data from '{src.get('source_file', '')}' …")
     try:
         df = pd.read_excel(fpath, sheet_name="Base Data", header=0)
     except Exception as e:
@@ -310,7 +311,11 @@ def update_sql_config(loaded_tables: list[dict]) -> None:
 
     existing_tables = {t["name"]: t for t in cfg.get("tables", [])}
     for t in loaded_tables:
-        existing_tables[t["name"]] = t
+        name = t["name"]
+        if name in existing_tables:
+            existing_tables[name].update(t)  # merge: preserve dir/type/sheet/header_row
+        else:
+            existing_tables[name] = t
 
     cfg["tables"] = list(existing_tables.values())
     with SQL_CFG.open("w") as f:
@@ -325,39 +330,33 @@ def update_sql_config(loaded_tables: list[dict]) -> None:
 def main() -> None:
     print("=" * 70)
     print("  Step 9 — Universal Data Ingestion Pipeline")
-    print(f"  Config : {CFG_FILE.relative_to(HERE)}")
+    print(f"  Config : {SQL_CFG.relative_to(HERE)}")
     print(f"  Mode   : {'RESET (drop + reload)' if RESET else 'resume (skip existing)'}")
     print("=" * 70)
 
-    if not CFG_FILE.exists():
-        print(f"ERROR: {CFG_FILE} not found.")
+    if not SQL_CFG.exists():
+        print(f"ERROR: {SQL_CFG} not found.")
         sys.exit(1)
 
-    with CFG_FILE.open() as f:
+    with SQL_CFG.open() as f:
         cfg = yaml.safe_load(f)
 
-    sources = cfg.get("sources", [])
+    # Only process tables that have a type (sql or workforce).
+    # Entries without type are legacy tables loaded outside this script.
+    sources = [t for t in cfg.get("tables", []) if t.get("type") in ("sql", "workforce")]
     print(f"\n  Sources defined : {len(sources)}")
 
     conn = get_conn()
 
     # Collect results for summary
     loaded_tables  = []
-    skipped        = []
     failed         = []
     workforce_done = False
 
     for i, src in enumerate(sources, 1):
-        stype = src.get("type", "skip").lower()
-        fname = src.get("file", "")
+        stype = src.get("type", "").lower()
+        fname = src.get("source_file", src.get("name", ""))
         print(f"\n[{i:02d}/{len(sources)}] {fname}  [{stype}]")
-
-        # ── SKIP ──────────────────────────────────────────────────────────────
-        if stype == "skip":
-            reason = src.get("reason", "")
-            print(f"    Skipped — {reason}")
-            skipped.append(fname)
-            continue
 
         # ── WORKFORCE fact extraction ──────────────────────────────────────────
         if stype == "workforce":
@@ -373,7 +372,7 @@ def main() -> None:
 
         # ── SQL load ───────────────────────────────────────────────────────────
         if stype == "sql":
-            table_name = src.get("table", "")
+            table_name = src.get("name", "")
             if not table_name:
                 print(f"    [error] 'table' not specified in config — skipping.")
                 failed.append(fname)
@@ -393,7 +392,7 @@ def main() -> None:
                     print(f"    Loaded {inserted:,} rows into '{table_name}'.")
                 loaded_tables.append({
                     "name":        table_name,
-                    "source_file": fname,
+                    "source_file": src.get("source_file", ""),
                     "description": src.get("description", ""),
                     "row_count":   int(len(df)),
                     "columns":     list(df.columns[:20]),
@@ -405,7 +404,6 @@ def main() -> None:
             continue
 
         print(f"    [warn] Unknown type '{stype}' — skipped.")
-        skipped.append(fname)
 
     conn.close()
 
@@ -420,7 +418,6 @@ def main() -> None:
     print(f"{'='*70}")
     print(f"  SQL tables loaded   : {sql_count}")
     print(f"  Workforce facts     : {'yes' if workforce_done else 'no'}")
-    print(f"  Skipped             : {len(skipped)}")
     print(f"  Failed              : {len(failed)}")
     if failed:
         print(f"\n  Failed files:")

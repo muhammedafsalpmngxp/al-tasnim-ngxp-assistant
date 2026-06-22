@@ -27,7 +27,7 @@ A single FastAPI server that answers natural-language questions by routing each 
 |---|---|---|
 | Operational counts, filters, status | **Text-to-SQL** | Intent classifier → parameterised SQL → PostgreSQL |
 | Knowledge, procedures, KT content | **Hybrid RAG** | pgvector dense + BM25 keyword → RRF → LLM |
-| Headcount, workforce facts | **Facts lookup** | Pre-extracted YAML facts → direct answer |
+| Headcount, workforce questions | **Hybrid RAG** | Workforce facts embedded at ingest → pgvector + BM25 |
 
 Every answer is returned in a **7-section structured format** (DIRECT ANSWER / EVIDENCE / SOURCE / CONFIDENCE LEVEL / ASSUMPTIONS / RISK / RECOMMENDED NEXT ACTION) with source citations.
 
@@ -45,13 +45,10 @@ prod_rag.py                  ← single FastAPI server — all logic lives here
   └─ Parent-doc retrieval    Matched child chunk → full parent row fetched for LLM context
 
 config/
-  ingest_config.yaml         All data source definitions (file → table → sheet → header_row)
-  sql_config.yaml            Text-to-SQL intents, trigger words, allowed filter columns
-  facts.yaml                 Operational KPIs and workforce facts for direct lookup
+  sql_config.yaml            All data sources + ingest config + Text-to-SQL intents + trigger words
 
 scripts/
-  09_universal_ingest.py     Ingest all sources from ingest_config.yaml into PostgreSQL
-  05_extract_facts.py        Extract operational facts → facts.yaml
+  09_universal_ingest.py     Ingest all sources defined in sql_config.yaml into PostgreSQL
   07_auto_extract_excel.py   Auto-scan Excel files for column metadata
   10_test_all.py             Run full test suite against the running RAG server (48 tests)
   11_export_schema.py        Export live DB schema to YAML for inspection
@@ -232,7 +229,7 @@ Returns active config summary (add `?role=admin` for full config).
 
 ## Data sources
 
-Configured in `config/ingest_config.yaml`. Active tables:
+Configured in the `tables:` section of `config/sql_config.yaml`. Active tables:
 
 | Table | Source file | Description |
 |---|---|---|
@@ -303,9 +300,9 @@ python scripts/12_test_agent.py --integration
 ## Adding a new data source
 
 1. Copy the file to `data/EXCEL/` or `data/CSV/`
-2. Add an entry to `config/ingest_config.yaml`
+2. Add a table entry (with `type`, `dir`, `source_file`, `sheet`, `header_row`) to the `tables:` section of `config/sql_config.yaml`
 3. Run `python scripts/09_universal_ingest.py`
-4. Add an intent to `config/sql_config.yaml` for Text-to-SQL support
+4. Add an intent to the `intents:` section of `config/sql_config.yaml` for Text-to-SQL support
 5. Server auto-loads the live schema at startup — no code changes needed
 
 ---

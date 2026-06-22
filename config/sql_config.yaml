@@ -105,60 +105,139 @@ trigger_words:
 - rol status
 - drilled status
 - vmb report
-# tables: — source_file and description only.
+# tables — one entry per data source loaded by 09_universal_ingest.py.
 # Columns and row counts come from the live DB at startup (_load_live_schema).
-# Never edit column lists here — they become stale after any ingest run.
+# Never hard-code column names here — they become stale after any ingest run.
+#
+# Ingest fields (read by 09_universal_ingest.py):
+#   type        sql | workforce   (omit to skip ingest for legacy-loaded tables)
+#   dir         CSV | EXCEL       (sub-folder under data/)
+#   source_file filename          (exact filename in data/<dir>/)
+#   sheet       sheet name        (Excel only; omit to use the first sheet)
+#   header_row  0-based int       (default 0; use >0 to skip merged title rows)
 tables:
-- name: well_monitoring
-  source_file: POC 1 WellMonitoringReport_Feb_Data_VERIFIED.csv
-  description: Well monitoring report — one row per well with 128 operational columns
-    including rig, progress, dates, flowline, cellar, and commissioning status.
-- name: project_ids
-  source_file: POC 1 ProjectIDs_VERIFIED.csv
-  description: Project ID lookup table mapping project codes to names and descriptions.
-- name: daily_plan
-  source_file: Daily_Plan.csv
-  description: Daily activity plan with planned vs actual activity timelines.
-- name: crew_master
-  source_file: Crew Master_VERIFIED.xlsx
-  description: Crew master list — crew group names, formations, PG/EG codes, and quantities.
-- name: well_master
-  source_file: Well Master _ Nimr _ 2026_VERIFIED.xlsx
-  description: Well master list for Nimr 2026 — well IDs, locations, and well attributes.
-- name: activity_master
-  source_file: Activity Master_VERIFIED.xlsx
-  description: Activity master — productivity norms for civil, mechanical, and E&I activities.
-- name: wmr_nimr
-  source_file: WMR-Nimr.xlsx
-  description: Nimr Cluster Well Monitoring Report (May 2026) — 370 wells with buffer
-    status, progress, rig assignment, PDO well ID, pegged dates, and construction milestones.
-- name: daily_plan_nimr
-  source_file: DailyPlan-Nimr.xlsx
-  description: Daily plan for Nimr field operations.
-- name: ph_productivity
-  source_file: PH_Productivity_Nimr_2026-05-10.xlsx
-  description: Person-hour productivity data for Nimr operations (May 2026).
-- name: well_delivery_kpis
-  source_file: Well Delivery Core KPIs (1) (1).xlsx
-  description: Well delivery core KPIs — planned vs actual delivery performance metrics for Nimr.
-- name: construction_delivery
-  source_file: Operational Charts - Construction - WD Dashboard (1).xlsx
-  description: Construction delivery table — well delivery management data with 87 operational columns.
-- name: well_delivery_kpis
-  source_file: Well Delivery Core KPIs (1) (1).xlsx
-  description: Well delivery core KPIs — 13 KPI metrics with Nimr and Marmul counts for pegged locations, FLAFs issued, rig-on schedule compliance, etc.
-- name: operational_wells
-  source_file: ACC Dump (loaded via legacy pipeline)
-  description: Operational wells table — 483 wells across 27 fields (AL BURJ, NIMR, AMAL SOUTH, etc.) with rig assignment, well function, and well type.
-- name: operational_tasks
-  source_file: Task_Plan.xlsx (loaded via legacy pipeline)
-  description: Operational task tracking — 44,235 milestone and activity records per well including Flowline Start/Finish, Hook Up, Rig-On/Off, Surveying, Grading, with progress (1.0=done, 0.0=pending).
-- name: crew_master
-  source_file: Crew Master_VERIFIED.xlsx
-  description: Crew master list — crew group names, formations, PG/EG codes, and quantities.
-- name: well_master
-  source_file: Well Master _ Nimr _ 2026_VERIFIED.xlsx
-  description: Well master list for Nimr 2026 — well IDs, locations, and well attributes.
+
+  # ── CSV sources ──────────────────────────────────────────────────────────────
+  - name: well_monitoring
+    source_file: POC 1 WellMonitoringReport_Feb_Data_VERIFIED.csv
+    dir: CSV
+    type: sql
+    description: Well monitoring report — one row per well with 128 operational columns
+      including rig, progress, dates, flowline, cellar, and commissioning status.
+
+  - name: project_ids
+    source_file: POC 1 ProjectIDs_VERIFIED.csv
+    dir: CSV
+    type: sql
+    description: Project ID lookup table mapping project codes to names and descriptions.
+
+  - name: daily_plan
+    source_file: Daily_Plan.csv
+    dir: CSV
+    type: sql
+    description: Daily activity plan with planned vs actual activity timelines.
+
+  # ── Excel sources ─────────────────────────────────────────────────────────────
+  - name: task_plan
+    source_file: Task_Plan.xlsx
+    dir: EXCEL
+    sheet: Task_Plan
+    header_row: 0
+    type: sql
+    description: Well task plan — activities, durations, progress, and start dates for each milestone.
+
+  - name: crew_master
+    source_file: Crew Master_VERIFIED.xlsx
+    dir: EXCEL
+    sheet: Sheet1
+    header_row: 0
+    type: sql
+    description: Crew master list — crew group names, formations, PG/EG codes, and quantities.
+
+  - name: well_master
+    source_file: "Well Master _ Nimr _ 2026_VERIFIED.xlsx"
+    dir: EXCEL
+    sheet: Sheet1
+    header_row: 2
+    type: sql
+    description: Well master list for Nimr 2026 — well IDs, locations, and well attributes.
+
+  - name: activity_master
+    source_file: Activity Master_VERIFIED.xlsx
+    dir: EXCEL
+    sheet: Activity Master
+    header_row: 2
+    type: sql
+    description: Activity master — productivity norms for civil, mechanical, and E&I activities.
+
+  - name: job_progress
+    source_file: Job Progress Report-Nimr.xlsx
+    dir: EXCEL
+    sheet: Job Progress (Nimr)
+    header_row: 4
+    type: sql
+    description: Job progress report for Nimr — activity-level progress tracking.
+
+  - name: daily_plan_nimr
+    source_file: DailyPlan-Nimr.xlsx
+    dir: EXCEL
+    sheet: Daily Plan (Nimr)
+    header_row: 4
+    type: sql
+    description: Daily plan for Nimr field operations.
+
+  - name: ph_productivity
+    source_file: PH_Productivity_Nimr_2026-05-10.xlsx
+    dir: EXCEL
+    sheet: PH_Productivity
+    header_row: 0
+    type: sql
+    description: Person-hour productivity data for Nimr operations (May 2026).
+
+  - name: well_delivery_kpis
+    source_file: "Well Delivery Core KPIs (1) (1).xlsx"
+    dir: EXCEL
+    sheet: KPIs
+    header_row: 1
+    type: sql
+    description: Well delivery core KPIs — 13 KPI metrics with Nimr and Marmul counts for
+      pegged locations, FLAFs issued, rig-on schedule compliance, and delivery milestones.
+
+  - name: construction_delivery
+    source_file: "Operational Charts - Construction - WD Dashboard (1).xlsx"
+    dir: EXCEL
+    sheet: PDO MGT Delivery Table - W
+    header_row: 0
+    type: sql
+    description: Construction delivery table — well delivery management data with 87 operational columns.
+
+  - name: wmr_nimr
+    source_file: WMR-Nimr.xlsx
+    dir: EXCEL
+    sheet: WMR
+    header_row: 5
+    type: sql
+    description: Nimr Cluster Well Monitoring Report (May 2026) — 370 wells with buffer
+      status, progress, rig assignment, PDO well ID, pegged dates, and construction milestones.
+
+  # ── Workforce dashboard (embeddings, not SQL) ─────────────────────────────────
+  - name: workforce
+    source_file: Mockup Dashboard with Drilldown 04032026_VERIFIED.xlsx
+    dir: EXCEL
+    type: workforce
+    description: AL TASNIM workforce dashboard — headcount by nationality, category, and employment type.
+
+  # ── Legacy tables (loaded via separate pipeline — ingest skips these) ─────────
+  - name: operational_wells
+    source_file: ACC Dump
+    description: Operational wells table — 483 wells across 27 fields (AL BURJ, NIMR, AMAL SOUTH,
+      etc.) with rig assignment, well function, and well type.
+
+  - name: operational_tasks
+    source_file: Task_Plan.xlsx
+    description: Operational task tracking — 44,235 milestone and activity records per well
+      including Flowline Start/Finish, Hook Up, Rig-On/Off, Surveying, Grading, with
+      progress (1.0=done, 0.0=pending).
 intents:
   # ── well_monitoring table ───────────────────────────────────────────────────
   well_count:
