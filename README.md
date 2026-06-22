@@ -1,84 +1,227 @@
-# AL TASNIM — LangGraph Orchestrator
+# AL TASNIM — Agentic AI Orchestrator
 
-Top-level orchestration layer for the Operational Intelligence Assistant. A user
-question goes to an LLM that decides which tool(s) to call (native tool-calling),
-the tools run, their results feed back to the LLM, and a final cited answer is
-returned. Tools live under `tools/`. The **DB tool is imported in-process** (same
-code, no HTTP); the **RAG tool is a separate HTTP service**.
+Production LangGraph orchestration platform for the Operational Intelligence Assistant.
+A natural-language question is routed by an LLM (with native tool-calling) to one or more
+tools, results feed back to the LLM, and a grounded cited answer is returned.
 
-## Layout
+**DB tool** — imported in-process (no HTTP, no latency). Runs a full NL→SQL pipeline
+(Groq LLM + HuggingFace embeddings, dynamic schema discovery, LlamaIndex vector indexes).
+
+**RAG tool** — optional HTTP service on port 8002 for document retrieval.
+
+---
+
+## Project layout
+
 ```
-al-tasnim-ngxp-assistant/                (repo root = orchestrator)
-├── .env.example   .gitignore   .dockerignore   requirements.txt   pytest.ini
-├── Dockerfile.orchestrator   Dockerfile.rag   docker-compose.yml   README.md
+db-tool-new/
+├── .env.example          ← template (copy to .env and fill in)
+├── .env                  ← real secrets (never commit)
+├── requirements.txt
 ├── src/
-│   ├── graph/      state.py · nodes.py · builder.py         (the LangGraph)
-│   ├── adapters/   registry.py · db_tool.py · rag_tool.py · _resilience.py
-│   ├── config.py · llm.py · prompts.py · evidence.py · observability.py
-│   ├── schemas.py · server.py · main.py
+│   ├── graph/            state.py · nodes.py · builder.py   (LangGraph)
+│   ├── adapters/         registry.py · db_tool.py · rag_tool.py · _resilience.py
+│   ├── config.py         all settings via pydantic-settings
+│   ├── llm.py            LLM factory (groq / gemini / local)
+│   ├── prompts.py        system prompt
+│   ├── evidence.py       collect + validate tool evidence
+│   ├── observability.py  structured logging + LangSmith tracing
+│   ├── schemas.py        Pydantic request/response models
+│   ├── server.py         FastAPI app
+│   └── main.py           entrypoint
 ├── tools/
-│   ├── db_assistant/    your DB tool (unchanged, imported in-process)
-│   └── rag_assistant/   RAG skeleton (port 8002)
-└── tests/   test_graph.py · test_registry.py · test_rag_contract.py · eval_routing.py
+│   ├── db_assistant/     NL→SQL pipeline (Groq + HuggingFace + LlamaIndex)
+│   │   ├── src/
+│   │   │   ├── pipeline.py   full pipeline: intent → table retrieval → SQL → answer
+│   │   │   └── models.py     FinalResponse schema
+│   │   ├── table_index_storage/   persisted vector index (auto-built first run)
+│   │   └── value_index_storage/
+│   └── rag_assistant/    document RAG service (port 8002)
+└── tests/
+    ├── test_graph.py
+    ├── test_registry.py
+    ├── test_rag_contract.py
+    └── eval_routing.py
 ```
 
-## Configuration — ONE root `.env`
-There is a **single `.env` at the repo root** (next to `requirements.txt`). It
-configures the orchestrator AND supplies the DB tool's settings. The DB tool's
-credentials live here too — you no longer keep a separate `tools/db_assistant/.env`.
+---
+
+## Quick start
 
 ```bash
-cp .env.example .env      # then fill DB_SERVER / DB_* and pick the model
-```
-Use `LLM_PROVIDER=local` (Ollama, works for both the orchestrator and the DB tool)
-or `LLM_PROVIDER=gemini` (+ `GOOGLE_API_KEY`).
+# 1. Create and activate a conda/venv environment
+conda activate mycuda        # or: python -m venv .venv && .venv\Scripts\activate
 
-## Flow
-```
-START -> agent (LLM + tools) --tool_calls--> tools (run) --results--> agent ... -> END
-                              \--no tool_calls-------------------------------------> END
-```
-`ToolNode` appends each tool result as a `ToolMessage` (the feedback). `tools_condition`
-routes to `tools` while tool calls exist, else `END`. `MAX_ITERATIONS` + `RECURSION_LIMIT`
-guarantee termination. Routing rules (CoT + few-shot, incl. the both-tools case) are in
-`src/prompts.py`. DB queries are SELECT-only (deterministic builder + read-only DB user).
-
-## Setup
-```bash
-python -m venv .venv && .venv\Scripts\activate     # mac/linux: source .venv/bin/activate
+# 2. Install dependencies
 pip install -r requirements.txt
-cp .env.example .env                                # edit it
-```
 
-## Run
-```bash
-# optional RAG service (port 8002), separate terminal
+# 3. Configure
+cp .env.example .env
+# Edit .env — set LLM_PROVIDER, API key, and DB credentials
+
+# 4. Run the orchestrator (port 8001)
+set PYTHONPATH=.
+python -m src.main
+
+# 5. Optional: run the RAG service (separate terminal, port 8002)
 cd tools\rag_assistant && python run.py
-
-# orchestrator (port 8001), from repo root
-set PYTHONPATH=. && python -m src.main
-```
-Docker: `docker compose up --build` (builds rag + orchestrator).
-
-## Check what's working
-```bash
-pytest -q                                           # offline: graph feedback loop, tools, RAG contract
-curl http://localhost:8001/health                   # provider, db_env_present, rag_reachable, tools
-curl -X POST http://localhost:8001/ask -H "Content-Type: application/json" \
-     -d "{\"question\": \"status of rig 104\"}"
-set PYTHONPATH=. && python tests\eval_routing.py     # routing accuracy (needs a live model)
 ```
 
-## Logging
-Every step logs with a correlation id (set `LOG_FILE=...` in `.env` to also write a file):
+---
+
+## LLM providers
+
+### Groq (recommended — fast, free tier)
+
+```env
+LLM_PROVIDER=groq
+GROQ_API_KEY=gsk_...           # https://console.groq.com/keys
+GROQ_MODEL_NAME=llama-3.3-70b-versatile
 ```
-orchestrator.api    ASK question=...
-orchestrator.agent  ROUTING -> ['query_database']
-orchestrator.tool.db CALL / RESULT ok rows=...
-orchestrator.api    DONE iterations=2 evidence=1 grounded=True took=...ms
+
+### Google Gemini
+
+```env
+LLM_PROVIDER=gemini
+GOOGLE_API_KEY=AIza...         # https://aistudio.google.com/app/apikey
+GEMINI_MODEL_NAME=gemini-2.0-flash
 ```
+
+### Ollama (local, no API key)
+
+```env
+LLM_PROVIDER=local
+LLM_MODEL=qwen2.5:7b           # must support tool-calling
+# Ollama must be running: ollama serve
+```
+
+---
+
+## LangSmith tracing
+
+LangSmith gives full trace visibility into every LangGraph node, LLM call, and tool invocation.
+
+**Setup:**
+
+1. Create a free account at <https://smith.langchain.com>
+2. Go to **Settings → API Keys → Create API Key**
+3. In your `.env`:
+
+```env
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_pt_...   # your key (also shown as LANGCHAIN_API_KEY in LangSmith docs)
+LANGSMITH_PROJECT=al-tasnim-orchestrator
+```
+
+The orchestrator reads these in `src/observability.py` and sets the standard
+`LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, and `LANGCHAIN_PROJECT` env vars that
+LangChain/LangGraph pick up automatically.
+
+Once enabled, every `/chat` request appears as a full trace in the LangSmith UI:
+agent steps, tool calls, LLM inputs/outputs, latency, token counts.
+
+---
+
+## Architecture
+
+```
+POST /chat
+  │
+  ▼
+FastAPI server (src/server.py)
+  │  builds HumanMessage, invokes LangGraph
+  ▼
+LangGraph (src/graph/)
+  agent node ──tool_calls──► ToolNode ──results──► agent node ... ──► END
+  (LLM decides which tools to call using native tool-calling)
+  │
+  ├── query_database (src/adapters/db_tool.py)
+  │     Imports tools.db_assistant.src.pipeline IN-PROCESS
+  │     Pipeline: intent → table vector search → schema context →
+  │               query plan → SQL generation → self-critique → execute → synthesize
+  │
+  └── query_documents (src/adapters/rag_tool.py)
+        HTTP call to RAG service on port 8002
+```
+
+**First-run init:** pipeline initialization (model load + schema discovery + index build)
+runs in a **background thread** at server startup. Queries wait for it to finish
+(up to `PIPELINE_INIT_WAIT_SEC`). After first run the table index is cached in
+`tools/db_assistant/table_index_storage/` — subsequent restarts take ~30s.
+
+---
+
+## API
+
+### `POST /chat`
+
+```json
+{ "question": "list wells in Nimr field", "session_id": "default", "user_id": "optional" }
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "answer": "There are 12 active wells in Nimr field...",
+  "tools_used": [
+    {
+      "tool": "query_database",
+      "status": "ok",
+      "row_count": 12,
+      "source": "operational_database",
+      "tables_used": ["2026_Well_Delivery_Scope_Well_Type", "Nimr Well Delivery Tracker (5)"]
+    }
+  ],
+  "iterations": 2,
+  "session_id": "default",
+  "error": null,
+  "execution_time_ms": 4230.5
+}
+```
+
+### `GET /health`
+
+Returns provider, model, reachable tools, RAG status.
+
+### `GET /tools`
+
+Lists all registered tool names.
+
+---
+
+## Configuration reference
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLM_PROVIDER` | `ollama` | `groq` / `gemini` / `local` |
+| `GROQ_API_KEY` | — | Required when `LLM_PROVIDER=groq` |
+| `GROQ_MODEL_NAME` | `llama-3.3-70b-versatile` | Groq model |
+| `GOOGLE_API_KEY` | — | Required when `LLM_PROVIDER=gemini` |
+| `GEMINI_MODEL_NAME` | `gemini-2.5-flash` | Gemini model |
+| `LLM_MODEL` | `qwen3:8b` | Ollama model name |
+| `LLM_TEMPERATURE` | `0.0` | LLM temperature |
+| `LLM_MAX_TOKENS` | `1024` | Max tokens per LLM response |
+| `DB_SERVER` | — | SQL Server host/IP |
+| `DB_NAME` | — | Database name |
+| `DB_READONLY_USER` | — | Read-only SQL user |
+| `DB_READONLY_PASSWORD` | — | Password |
+| `DB_TOOL_TIMEOUT` | `120` | Seconds before a DB query times out |
+| `PIPELINE_INIT_WAIT_SEC` | `1800` | Max seconds to wait for first-run pipeline init |
+| `VALUE_INDEX_ENABLED` | `0` | `1` = build value-grounding index (slow on large DBs) |
+| `RAG_TOOL_URL` | `http://localhost:8002` | RAG service URL |
+| `MAX_ITERATIONS` | `5` | Max agent tool-calling iterations |
+| `LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` |
+| `LOG_FILE` | — | Optional path to write logs to a file |
+| `LANGSMITH_TRACING` | `false` | `true` to enable LangSmith |
+| `LANGSMITH_API_KEY` | — | Your LangSmith API key |
+| `LANGSMITH_PROJECT` | `al-tasnim-orchestrator` | LangSmith project name |
+
+---
 
 ## Add a tool
+
 ```python
 # src/adapters/my_tool.py
 from langchain_core.tools import tool
@@ -87,11 +230,28 @@ from .registry import register_tool
 @register_tool
 @tool
 async def my_tool(arg: str) -> str:
-    """Clear description — the LLM uses this to decide when to call it."""
+    """One-line description — the LLM reads this to decide when to call the tool."""
     ...
 ```
-Import it in `src/adapters/__init__.py`. Done.
 
-## Roadmap
-Clarification node → retrieval grader / self-correction → risk + human approval
-(`interrupt()`) → caching (doc-only) → output-validation node.
+Import it in `src/adapters/__init__.py`. The tool appears in `/tools` and is
+automatically available to the agent.
+
+---
+
+## Health check
+
+```bash
+curl http://localhost:8001/health
+curl -X POST http://localhost:8001/chat \
+     -H "Content-Type: application/json" \
+     -d '{"question": "how many active wells are in Nimr field?"}'
+```
+
+## Tests
+
+```bash
+set PYTHONPATH=.
+pytest -q                          # offline unit tests
+python tests/eval_routing.py       # routing accuracy (needs a live model)
+```

@@ -6,3 +6,78 @@ __pycache__/
 venv/
 .pytest_cache/
 .DS_Store
+
+export_all_tables.py
+
+
+# Environment / Secrets
+
+.env
+.env.*
+!.env.example
+
+# Python
+
+**pycache**/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual Environments
+
+.venv/
+venv/
+env/
+
+# Runtime Vector Indexes (rebuild automatically)
+
+table_index_storage/
+value_index_storage/
+
+# Pickle / Model Artifacts
+
+*.pkl
+*.pickle
+
+# Logs
+
+logs/
+*.log
+
+# Exports / Generated Data
+
+exports/
+
+# IDE
+
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS Files
+
+.DS_Store
+Thumbs.db
+
+# Database / Cache Files
+
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary Files
+
+*.tmp
+*.temp
+
+# Local Utility Scripts
+
+export_all_tables.py
+
+vector_index_10tables.pkl

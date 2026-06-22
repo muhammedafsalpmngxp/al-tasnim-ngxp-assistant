@@ -23,6 +23,7 @@ class ToolCall(BaseModel):
     status: str                        # "ok" | "error" | "needs_clarification"
     row_count: Optional[int] = None
     source: Optional[str] = None
+    tables_used: List[str] = []
 
 
 class ChatResponse(BaseModel):
@@ -31,5 +32,6 @@ class ChatResponse(BaseModel):
     tools_used: List[ToolCall] = Field(default_factory=list)
     iterations: int = 0
     session_id: Optional[str] = None
+    routing_hint: str = ""   # "db" | "rag" | "both" | "" — set by semantic routing node
     error: Optional[str] = None
     execution_time_ms: float = 0.0

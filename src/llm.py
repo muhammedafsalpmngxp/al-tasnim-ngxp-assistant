@@ -42,4 +42,13 @@ def get_chat_model():
             max_output_tokens=settings.LLM_MAX_TOKENS,
             google_api_key=settings.GOOGLE_API_KEY,
         )
+    if provider == "groq":
+        from langchain_groq import ChatGroq
+        logger.info("LLM provider=groq model=%s", settings.GROQ_MODEL_NAME)
+        return ChatGroq(
+            model=settings.GROQ_MODEL_NAME,
+            temperature=settings.LLM_TEMPERATURE,
+            max_tokens=settings.LLM_MAX_TOKENS,
+            api_key=settings.GROQ_API_KEY,
+        )
     raise ValueError(f"Unknown LLM_PROVIDER: {provider!r}")

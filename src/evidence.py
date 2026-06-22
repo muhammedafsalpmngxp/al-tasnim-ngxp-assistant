@@ -32,6 +32,7 @@ def extract_tools_used(evidence: List[Dict[str, Any]]) -> List[ToolCall]:
             status=p.get("status", "unknown") if isinstance(p, dict) else "unknown",
             row_count=p.get("row_count") if isinstance(p, dict) else None,
             source=p.get("source") if isinstance(p, dict) else None,
+            tables_used=p.get("tables_used", []) if isinstance(p, dict) else [],
         ))
     return result
 
@@ -56,8 +57,10 @@ def validate_answer(
 ) -> Tuple[bool, str]:
     """Return (grounded, message_or_answer).
 
-    If a tool asked for clarification, surface that question to the user.
-    If there is no usable evidence, return the canned no-evidence message.
+    - Clarification request: surface the tool's question directly.
+    - Grounded answer (at least one tool succeeded): return as-is.
+    - All tools failed but LLM produced an explanation: return it (marked not grounded).
+    - No answer at all: return canned no-evidence message.
     """
     for e in evidence:
         p = e.get("payload")
@@ -66,5 +69,8 @@ def validate_answer(
     if not answer:
         return False, _NO_EVIDENCE
     if not has_usable_evidence(evidence):
-        return False, _NO_EVIDENCE
+        # All tools returned errors. The LLM may have written a useful explanation
+        # (e.g. "unable to retrieve data because..."). Surface it instead of a
+        # generic message, but mark success=False so callers know it's ungrounded.
+        return False, answer
     return True, answer

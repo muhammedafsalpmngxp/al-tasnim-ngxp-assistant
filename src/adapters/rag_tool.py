@@ -15,14 +15,7 @@ logger = logging.getLogger("orchestrator.tool.rag")
 @register_tool
 @tool
 async def search_documents(query: str) -> str:
-    """Search engineering documents, SOPs, procedures, KT transcripts and
-    training material. Use for how-to questions, procedures, explanations and
-    definitions (e.g. "casing running procedure", "define spud date").
-    Do NOT use for live operational status — use query_database for that.
-
-    Args:
-        query: The search query describing the procedure/topic to look up.
-    """
+    """Search uploaded documents for step-by-step procedures, work instructions, engineering standards, HSE guidelines, and regulatory content — NOT for live operational data or DB records."""
     logger.info("CALL query=%r", query)
 
     async def _call():
