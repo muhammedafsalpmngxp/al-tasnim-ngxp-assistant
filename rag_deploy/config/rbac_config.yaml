@@ -1,0 +1,74 @@
+# AL TASNIM — Role-Based Access Control (RBAC) Configuration
+#
+# API keys are set in .env as:
+#   AL_TASNIM_API_KEYS=key1:role:display_name,key2:role2:name2
+# Example:
+#   AL_TASNIM_API_KEYS=secret-admin-key:ngxp_admin:Admin,ops-key-001:al_tasnim_ops:OpsUser
+#
+# If AL_TASNIM_API_KEYS is not set → dev mode (all requests treated as ngxp_admin).
+#
+# Confidentiality levels (lowest → highest):
+#   public       — general project info, no restriction
+#   internal     — operational data (well monitoring, WMR, daily plans)
+#   restricted   — KPIs, delivery tables, management reports
+#   confidential — PDO/client-side data, personnel records
+#
+# To add a new role:
+#   1. Add a block under `roles:` with description, confidentiality, tables
+#   2. Issue API keys mapped to that role via AL_TASNIM_API_KEYS in .env
+#   3. Restart the server
+
+roles:
+
+  ngxp_admin:
+    description: "Full system access — NGXP internal engineers only"
+    confidentiality: [public, internal, restricted, confidential]
+    tables: ["*"]
+
+  pdo_admin:
+    description: "PDO administrative access — for PDO-side integration users"
+    confidentiality: [public, internal, restricted, confidential]
+    tables: ["*"]
+
+  cluster_manager:
+    description: "Cluster-level management — access to all operational + KPI data"
+    confidentiality: [public, internal, restricted]
+    tables: ["*"]
+
+  planner:
+    description: "Planning team — full operational + KPI access, no confidential"
+    confidentiality: [public, internal, restricted]
+    tables: ["*"]
+
+  al_tasnim_ops:
+    description: "Operational staff — well monitoring and Nimr data only"
+    confidentiality: [public, internal]
+    tables:
+      - well_monitoring
+      - wmr_nimr
+      - well_master
+      - daily_plan_nimr
+      - daily_plan
+      - job_progress
+      - task_plan
+      - ph_productivity
+      - activity_master
+      - crew_master
+      - project_ids
+
+  civil_executive:
+    description: "Civil execution team — well monitoring and daily operational data"
+    confidentiality: [public, internal]
+    tables:
+      - well_monitoring
+      - wmr_nimr
+      - daily_plan_nimr
+      - job_progress
+      - task_plan
+      - well_master
+
+  read_only:
+    description: "View-only access — public data only"
+    confidentiality: [public]
+    tables:
+      - well_monitoring

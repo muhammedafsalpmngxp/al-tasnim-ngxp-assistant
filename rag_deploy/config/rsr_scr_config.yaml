@@ -1,0 +1,42 @@
+# AL TASNIM — RSR / SCR Auto-Email Watcher Configuration
+#
+# This watcher monitors a local inbox folder for new Rig Sequence Reports (RSR)
+# and Sequence Change Reports (SCR) dropped by PDO, then auto-emails all stakeholders.
+#
+# RSR = Rig Sequence Report  — issued by PDO to communicate the sequence of rig moves
+# SCR = Sequence Change Report — issued when PDO changes an existing rig sequence
+#
+# MVP: watches a local folder (data/RSR_SCR_INBOX/) as a stand-in for the
+#      Autodesk Construction Cloud (ACC) folder.
+#
+# Production ACC integration path:
+#   Set up an ACC webhook → POST file metadata to POST /rsr_scr_webhook (future endpoint).
+#   The watcher's check_once() can be called from that webhook handler.
+#
+# Recipient emails must be set in .env:
+#   RSR_PLANNER_EMAIL, RSR_CIVIL_EMAIL, RSR_CM_EMAIL, RSR_PERMIT_EMAILS
+#   RSR_PERMIT_EMAILS is comma-separated for multiple permit applicants.
+
+poll_interval_seconds: 60
+
+watch_folder: "data/RSR_SCR_INBOX"
+processed_folder: "data/RSR_SCR_PROCESSED"
+
+# Filename patterns to detect (case-insensitive)
+patterns:
+  - "RSR*.pdf"
+  - "RSR*.xlsx"
+  - "SCR*.pdf"
+  - "SCR*.xlsx"
+
+recipients:
+  planner: "${RSR_PLANNER_EMAIL}"
+  civil_executive: "${RSR_CIVIL_EMAIL}"
+  construction_manager: "${RSR_CM_EMAIL}"
+  permit_applicants: "${RSR_PERMIT_EMAILS}"
+
+email:
+  subject_template: "[AL TASNIM] New {doc_type} received — {filename}"
+  body_intro: >
+    A new {doc_type} ({filename}) has been received and requires your immediate attention.
+    Please review the document and take necessary action as per your role.

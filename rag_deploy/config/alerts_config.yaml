@@ -1,0 +1,105 @@
+# AL TASNIM — Smart Alerts Engine Configuration
+#
+# Rules are evaluated every `schedule_minutes` minutes by:
+#   python scripts/alerts_engine.py
+#
+# Rules run PURE SQL — no LLM involved. Each rule fires when its query returns rows.
+# Alert delivery: email (SMTP) + in-app (alerts_log table in PostgreSQL).
+#
+# SMTP must be configured in .env for email delivery:
+#   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+# Without SMTP config, alerts are console-only (safe for dev).
+#
+# Recipient emails must be set in .env:
+#   ALERT_OPS_EMAIL, ALERT_PLANNING_EMAIL, ALERT_MGMT_EMAIL
+
+schedule_minutes: 5
+
+smtp:
+  host: "${SMTP_HOST}"
+  port: 587
+  user: "${SMTP_USER}"
+  password: "${SMTP_PASS}"
+  from: "${SMTP_FROM}"
+
+recipients:
+  ops_team: "${ALERT_OPS_EMAIL}"
+  planning_team: "${ALERT_PLANNING_EMAIL}"
+  management: "${ALERT_MGMT_EMAIL}"
+
+rules:
+
+  - id: missing_flaf_approval
+    name: "Missing FLAF Approval"
+    severity: high
+    table: well_monitoring
+    sql: |
+      SELECT well_name_after_spud, rig_no, over_all_progress_percentages
+      FROM well_monitoring
+      WHERE flow_line_const_status_in_progress_completed IS NULL
+        AND over_all_progress_percentages IS NOT NULL
+        AND over_all_progress_percentages::text ~ '^[0-9]+(\.[0-9]+)?$'
+        AND over_all_progress_percentages::numeric > 50
+      ORDER BY over_all_progress_percentages::numeric DESC
+      LIMIT 20
+    message: "{count} wells are >50% complete but have no FLAF approval on record."
+    notify_roles: [ops_team, planning_team]
+
+  - id: stalled_well
+    name: "Stalled Well (in-progress, no rig-off date)"
+    severity: high
+    table: well_monitoring
+    sql: |
+      SELECT well_name_after_spud, rig_no, over_all_progress_percentages, actual_rig_on_date
+      FROM well_monitoring
+      WHERE over_all_progress_percentages IS NOT NULL
+        AND over_all_progress_percentages::text ~ '^[0-9]+(\.[0-9]+)?$'
+        AND over_all_progress_percentages::numeric > 0
+        AND over_all_progress_percentages::numeric < 100
+        AND actual_rig_off_date IS NULL
+      ORDER BY rig_no
+      LIMIT 20
+    message: "{count} wells appear stalled — in-progress but no rig-off date recorded."
+    notify_roles: [ops_team, management]
+
+  - id: negative_progress
+    name: "Negative Daily Progress (Data Anomaly)"
+    severity: critical
+    table: well_monitoring
+    sql: |
+      SELECT well_name_after_spud, rig_no, over_all_progress_percentages
+      FROM well_monitoring
+      WHERE over_all_progress_percentages IS NOT NULL
+        AND over_all_progress_percentages::text LIKE '-%'
+      LIMIT 20
+    message: "{count} wells have negative progress values — data anomaly detected."
+    notify_roles: [ops_team, management]
+
+  - id: missing_rig_on_date
+    name: "In-Progress Wells Missing Rig-On Date"
+    severity: medium
+    table: well_monitoring
+    sql: |
+      SELECT well_name_after_spud, rig_no, over_all_progress_percentages
+      FROM well_monitoring
+      WHERE actual_rig_on_date IS NULL
+        AND over_all_progress_percentages IS NOT NULL
+        AND over_all_progress_percentages::text ~ '^[0-9]+(\.[0-9]+)?$'
+        AND over_all_progress_percentages::numeric > 0
+      ORDER BY rig_no
+      LIMIT 20
+    message: "{count} in-progress wells are missing rig-on date — reporting gap detected."
+    notify_roles: [planning_team]
+
+  - id: nimr_buffer_status
+    name: "Nimr Buffer Status Summary"
+    severity: info
+    table: wmr_nimr
+    sql: |
+      SELECT buffer_status, COUNT(*) AS well_count
+      FROM wmr_nimr
+      WHERE buffer_status IS NOT NULL
+      GROUP BY buffer_status
+      ORDER BY well_count DESC
+    message: "Nimr buffer pool: {summary}"
+    notify_roles: [planning_team]
