@@ -1,0 +1,423 @@
+database: AppMasterDB_Local
+description: Oil & gas well delivery and flowline construction DB for Al Tasnim LLC in Oman (Nimr, Marmul, Al Burj). Tracks well schedules, crew assignments, activity progress, employees, revenue, and well monitoring.
+
+tables:
+
+  ActivityCodesNorms:
+    description: Maps activity IDs to old/new activity codes, crew codes, units, and productivity norms. Used to translate legacy codes and look up crew output rates.
+    columns:
+      Activity_ID: Activity identifier e.g. 'FLCV1000' (FL=Flowline, CV=Civil)
+      Old_Activity_Code: Legacy code e.g. 'FL-CV-ML01-01'
+      New_Activity_Code: Current standard code e.g. 'F-C-SLL-SSO-01'
+      New_Crew_code: Crew type assigned to this activity e.g. 'SSS-0401'. Ref CrewType.Code
+      Unit: Unit of measure — KM/Km (kilometres), No (count), m3 (cubic metres)
+      Norms: Crew output per day in the given unit e.g. 0.4 KM/day, 12.5 No/day
+
+  ActivityMasterCSV:
+    description: Master catalog of all field construction activities with discipline, group, description, application, and crew group.
+    columns:
+      Sl_No: Serial number
+      DISCIPLINE: Engineering discipline e.g. 'Civil'
+      Activity_Group_Description: Activity group e.g. 'Sleeper Laying', 'Foundation Installation'
+      ACTIVITY_CODE: Unique activity code e.g. 'FL-CV-ML01-01'
+      ACTIVITY_DESCRIPTION: Full activity description e.g. 'Unloading and alignment of sleeper'
+      APPLICATION: Application area — all records show 'Well Delivery'
+      CREW_GROUP_CODE: Crew group code e.g. 'SRV0401' (Survey), 'CSI0402' (Sleeper Installation)
+
+  ActivityMasterMapping:
+    description: Maps activity IDs to composition codes (crew types), UOM, norms, and PTW/RFI flags for Flowline activities.
+    columns:
+      ActivityID: Activity ID e.g. 'MS1000' (Milestone), 'FLCV1000' (Flowline Civil)
+      Type: Project type — all show 'Flowline'
+      Activity_Code: Old activity code e.g. 'FL-CV-ML01-01'. NULL for milestones
+      Composition_Code: Crew composition code e.g. 'SRV0401'. NULL for milestones
+      UOM: Unit of measure — KM, Km, No
+      Norms: Crew productivity norm (qty/day) e.g. 0.5. NULL for milestones
+      Class_B_PTW: Requires Class B Permit To Work — True/False
+      RFI: Requires Request for Inspection on completion — True/False
+
+  ActivityMasterMapping_New:
+    description: Newer activity mapping including high-level phases (Milestone, Engineering, Location, Pad/Cellar Construction, Flowline, OHL).
+    columns:
+      Activity_ID: Phase or activity name e.g. 'Milestone', 'Location', 'Pad Construction', 'Cellar Construction'
+      Old_Activity_Code: Legacy code — '#N/A' if no old code
+      New_Activity_Code: New short code e.g. 'MIL', 'LOC', 'L-C-PAD', 'L-C-CEL', 'F-C-SLL'
+      New_Crew_code: New crew code — '#N/A' where not applicable
+      Old_Crew_code: Old crew code — mostly empty
+      Unit: UOM — '#N/A' where not defined
+      Norms: Productivity norm — '#N/A' where not defined
+      RFI: RFI flag — '#N/A' where not defined
+
+  ActivityTaskPlan:
+    description: PRIMARY scheduling table. Full hierarchical WBS task tree for all wells. Each row = one task node. Very large table — use Well_ID or project_id to filter.
+    columns:
+      row_id: Primary key. Sequential integer
+      source_id: External system ID — mostly null
+      Data: JSON with purpose_value (OMR contract value) and step_type (LOC/FLC) e.g. '{"purpose_value":"2900","step_type":"LOC"}'
+      ancestor: Comma-separated ancestor row IDs forming hierarchy path e.g. '143804,143508'
+      duration: Task duration in days e.g. '1.0'
+      progress: Completion fraction 0.0–1.0 e.g. '0.85' = 85%
+      crew_uid: Assigned crew ID e.g. '3522-LCC-0803-907960'. Empty for milestones
+      crew_type: Crew type code e.g. 'LCC-0803'. Ref CrewType.Code
+      qty: Planned quantity — '0.0' for milestones
+      manhours: Planned manhours e.g. '210.14'. '0.0' for milestones
+      weightage: Task weight as fraction of parent 0.0–1.0 e.g. 0.85 (Location), 0.70 (Pad), 0.15 (Cellar)
+      parent: Parent task row_id e.g. '143804.0'
+      start_date: Actual/committed start date e.g. '2026-01-04'
+      end_date: Actual/committed end date e.g. '2026-03-15'
+      target_start: Baseline planned start date e.g. '2025-12-11'
+      target_end: Baseline planned end date e.g. '2026-09-13'
+      actual_start: Date work began. '1900-01-01' = not yet started
+      actual_end: Date work completed. '1900-01-01' = not yet finished
+      qtyactual: Actual quantity completed
+      qtyforacst: Forecast quantity at completion
+      manhoursactual: Actual manhours spent e.g. '252.69'
+      manhourforacst: Forecast manhours at completion
+      code: WBS position code e.g. 'PW1.3' (well root), 'PW1.3.5' (Location), 'LCMS1000-33151' (milestone)
+      text: Task name e.g. 'W33151' (well root), 'Milestone', 'Location', 'Pad Construction', 'Cellar Construction'
+      type: Task type — 'W' (work task), 'M' (milestone)
+      schedule_id: Schedule version ID e.g. '355'
+      project_id: Project UUID e.g. '8c9c6b42-7a12-4eb3-935b-fc0437e7f33f'. Ref ProjectIDs.ID
+      task_assignee: Assignee email e.g. 'sandeep.116697@ong.altasnim.com'
+      supervisor_email: Supervisor email
+      attributes: JSON array of custom attributes e.g. '[{"name":"Well Suspension","value":"Resume"}]'
+      remaining_duration: Remaining days — '0.0' complete, '1.0' not started
+      Resume_Suspend: Well status — 'Resume' (active) or 'Suspend' (on hold)
+      Well_ID: Well numeric ID e.g. '33151'. Ref WellMonitoringReport_Latest.pdo_well_id
+      Parent_WBS: Well root WBS code e.g. 'W33151'
+      Time_Stamp: Last sync timestamp e.g. '2026-02-15 01:36:30 -0800'
+
+  Company:
+    description: Master list of contractor/subcontractor companies. All linked to Al Tasnim account.
+    columns:
+      id: Company ID e.g. '2' (Al Tasnim), '39' (Al Tasnim Enterprises LLC), '40' (Gulf Construction)
+      Name: Company name e.g. 'Al Tasnim Enterprises LLC', 'Gulf Construction Co LLC', 'Muscat Engineering & Oilfield'
+      Account: Organisation UUID — all share '367f58ab-d5e4-43ec-b5ff-ddc27426db5d'
+
+  CrewEmployee:
+    description: Junction table — links employees to crew instances with their role in that crew.
+    columns:
+      id: Record ID
+      Account: Organisation UUID
+      Crew: Crew instance ID. Ref crews.ID
+      EmployeeType: Employee role in this crew. Ref EmployeeType.id
+      Employee: Employee record ID. Ref Employee.id
+
+  CrewEquipment:
+    description: Junction table — links equipment to crew instances.
+    columns:
+      id: Record ID
+      Account: Organisation UUID
+      Crew: Crew instance ID. Ref crews.ID
+      Equipment: Equipment item ID
+      EquipmentType: Equipment type ID. Ref CrewTypeEquipment.EquipmentType
+
+  crews:
+    description: Master list of all physical crew instances (gangs on the ground). Code format = COMPANY_CREWTYPE_SEQ.
+    columns:
+      ID: Crew instance ID e.g. '4685', '1196'. Ref by CrewEmployee.Crew, TaskCrew.Crew
+      Code: Crew code e.g. 'HIT_CSE0302_4', 'MES_CGD0602_09'
+      Account: Organisation UUID
+      Location: Site ID — all show '53' (Nimr)
+      CrewType: Crew type ID. Ref CrewType.ID
+      Supervisor: Supervisor employee ID. Ref Employee.id
+      Employees: JSON array of employee IDs e.g. '[6248, 6981, 5276]'
+      Equipments: JSON array of equipment IDs e.g. '[]'
+
+  CrewType:
+    description: Master crew type templates defining standard composition (employee roles and equipment) for each crew type.
+    columns:
+      ID: Crew type ID e.g. '204' (NDT Crew), '285' (OHL Crew). Ref by crews.CrewType
+      Description: Crew type name e.g. 'NDT Crew (Vendor)', 'OHL Crew (TAsnim)', 'GRE Jointing Crew'
+      Code: Short code e.g. 'NDT0001', 'OHL0504', 'PAL0603'. Used in task_daily.crew_type
+      Account: Organisation UUID
+      Employee_Count: JSON array of EmployeeType IDs in this template e.g. '[1839, 1840, 1824]'. Ref EmployeeType.id
+      Equipment_Count: JSON array of equipment type IDs required e.g. '[474, 325, 473]'
+
+  CrewTypeEmployee:
+    description: Defines how many of each employee type are needed per crew type template.
+    columns:
+      id: Record ID
+      Quantity: Required headcount of this type e.g. 1 (supervisor), 2 (labourers)
+      Account: Organisation UUID
+      CrewType: Crew type ID. Ref CrewType.ID
+      EmployeeType: Employee role ID required. Ref EmployeeType.id
+
+  CrewTypeEquipment:
+    description: Defines how many of each equipment type are needed per crew type template.
+    columns:
+      ID: Record ID
+      Quantity: Required count e.g. '1', '2'
+      Account: Organisation UUID
+      CrewType: Crew type ID. Ref CrewType.ID
+      EquipmentType: Equipment type ID required e.g. '325', '327', '473'
+
+  Dashboarding_Job_Progress:
+    description: Pre-aggregated weekly/monthly progress dashboard data per well. Plan vs actual % by week, cumulative totals, manhours, and target end dates.
+    columns:
+      "Sl.No": Serial number
+      Category: Project category e.g. 'Marmul SNLP', 'Nimr Conversion with Flowline'
+      "Well ID": Well numeric ID. Ref WellMonitoringReport_Latest.pdo_well_id
+      "Well Name / Project Name": Well location name e.g. 'RKDS_2026_WI_LOC6'
+      "PO No": Purchase Order number e.g. '4501028206/320'
+      "WBS No": WBS code e.g. 'WD-3522-24628-SNL-1-L'
+      "Cum-Prior Month Actual %": Cumulative actual % up to end of prior month
+      "Week-1 Plan %": Planned % increment for Week 1
+      "Week-1 Actual %": Actual % achieved in Week 1
+      "Week-2 Plan %": Planned % for Week 2
+      "Week-2 Actual %": Actual % for Week 2
+      "Week-3 Plan %": Planned % for Week 3
+      "Week-3 Actual %": Actual % for Week 3
+      "Week-4 Plan %": Planned % for Week 4
+      "Week-4 Actual %": Actual % for Week 4
+      "Week-5 Plan %": Planned % for Week 5
+      "Week-5 Actual %": Actual % for Week 5
+      "Current Month Plan %": Total planned % for current month
+      "Current Month Actual %": Total actual % for current month
+      "Cum-Current Month Plan %": Cumulative planned % including current month
+      "Cum-Current Month Actual %": Cumulative actual % including current month
+      "Target End": Target completion date e.g. '2026-07-05'
+      "Purpose Value": Total contract value (OMR) e.g. 48071.0
+      manhours: Total planned manhours e.g. 250.93
+      manhoursactual: Actual manhours spent e.g. 40.0
+      manhourforacst: Forecast manhours at completion e.g. 512.81
+      Remarks: Free-text notes — usually empty
+
+  Employee:
+    description: Master employee directory for all Al Tasnim workers across all sites.
+    columns:
+      id: Internal employee ID. Ref by CrewEmployee.Employee
+      UId: HR/payroll employee number e.g. '113526'. Used in task_daily.data_employees and crew codes
+      Name: Full name in uppercase e.g. 'VISHNU CHOLAKKAL', 'PRASANTH KUMAR'
+      Email: Work email e.g. 'rajesh.116864@ong.altasnim.com'
+      Status: Employment status — all show 'Active'
+      Supervisor: Supervisor employee ID. '0' = top-level
+      Account: Organisation UUID
+      EmployeeType: Job role ID. Ref EmployeeType.id
+      Company: Company ID e.g. '39' (Al Tasnim Enterprises LLC). Ref Company.id
+      Manager: Manager employee ID
+      Location: Site code e.g. '53' (Nimr), '55', '56', '57'
+
+  EmployeeType:
+    description: Master lookup of all employee job roles with codes and rates.
+    columns:
+      id: Employee type ID e.g. '1848' (Pipe Bender), '1890' (HSE Advisor). Ref Employee.EmployeeType
+      Category: Broad category e.g. 'TRADESMAN', 'Supervisor'. Often NULL
+      Description: Job title e.g. 'Pipe Bender', 'Mason - Tile', 'HSE Advisor', 'Project Manager - MEP'
+      Code: Role code format 'PG'+number e.g. 'PG1295' (Pipe Bender), 'PG6015' (HSE Advisor)
+      Rate: Hourly rate — all show '0.0' (not configured)
+      Account: Organisation UUID
+
+  Job_Progress_PlanSnapshot:
+    description: Historical snapshots of planned weekly progress per well, captured at start of each month. Used to compare actual vs plan at snapshot date.
+    columns:
+      Well_ID: Well numeric ID. Ref WellMonitoringReport_Latest.pdo_well_id
+      project_id: Project UUID. Ref ProjectIDs.ID
+      Cum_Prior_Plan_frac: Cumulative planned fraction from prior months e.g. 0.2954 = 29.5%
+      W1_Plan_frac: Planned fraction for Week 1 of snapshot month
+      W2_Plan_frac: Planned fraction for Week 2
+      W3_Plan_frac: Planned fraction for Week 3
+      W4_Plan_frac: Planned fraction for Week 4
+      W5_Plan_frac: Planned fraction for Week 5
+      CurrentMonthPlanFrac: Total planned fraction for snapshot month
+      CumCurrentMonthPlanFrac: Cumulative planned fraction including this month
+      Latest_Target_End: Target completion date at snapshot time e.g. '2026-10-18'
+      CreatedOn: Snapshot creation date e.g. '2026-06-01'
+
+  OLD_NEW_CREW_MAPPING:
+    description: Translation table mapping old crew codes to new crew group codes after coding system update.
+    columns:
+      Old_Crew_Code: Old format crew code e.g. 'SRV0401', 'CGD0303', 'CSI0402'
+      CREW_GROUP_CODE: New format crew code e.g. 'SSS-0401', 'FCR-0303', 'FCS-0402'
+
+  PH_Productivity:
+    description: Daily productivity records by plant head supervisor — crew performance, average productivity %, and productivity index ratings.
+    columns:
+      "S.No": Serial number
+      Date: Assessment date e.g. '2024-12-11'
+      "PA Name": Planning Admin name e.g. 'hansraj', 'jithu'
+      "PH Emp ID": Plant Head employee UId. Ref Employee.UId
+      "PH Name": Plant Head name e.g. 'CYRIL SERIN'
+      "ATNM/Sub Contractor": "'ATNM' (Al Tasnim staff) or 'Sub contractor'"
+      "Crew Type": Crew type code e.g. 'SSS-0401', 'FRL-0504'. Ref CrewType.Code
+      "Crew Name": Crew description e.g. 'Welding Crew - FL', 'FL Anchor foundation'
+      "Average Productivity (%)": "Crew productivity %. 100% = at norm. e.g. 86.02%, 109.22% (above norm)"
+      "PI (CMR)": Productivity Index via CMR method — scale P0–P8
+      "PI (T-Wise)": Productivity Index via T-Wise method — scale P0–P8
+
+  ProjectIDs:
+    description: Master lookup of all project types across Nimr and Marmul clusters. Used to link tasks and progress records to projects.
+    columns:
+      Code: Short project code e.g. 'NL0010' (Nimr Location), 'NF0010' (Nimr Flowline), 'NS0010' (Nimr SNLP), 'ML0010' (Marmul Location)
+      column2: Full project name e.g. 'Nimr Location', 'Nimr SNLP', 'Marmul Flowline'
+      Number: Sequential project type number
+      ID: Project UUID — foreign key used in ActivityTaskPlan.project_id, task_daily.project_id e.g. '8c9c6b42-7a12-4eb3-935b-fc0437e7f33f'
+      Cluster: Field/cluster name — 'Nimr' or 'Marmul'
+      Project: Project phase — 'Location', 'Flowline', 'SNLP', 'Re-Open without Flowline', 'Non-Standard Well', 'Conversion with Flowline'
+      Site: Site name — 'Nimr' or 'Marmul'
+      Type: Well construction type — 'Conventional Well', 'SNLP', 'Conversion Well', 'Non Standard Well'
+      Cluster_Code: Plant code — '3522' (Nimr ODC), '3524' (Marmul)
+      Site_Code: Same as Cluster_Code
+      Type_Code: Short type code in WBS — 'CTW' (Conventional), 'SNL' (SNLP), 'RWF' (Re-Open), 'NSW' (Non-Standard), 'CVW' (Conversion)
+
+  Revenue:
+    description: Plan vs actual progress and contract values per activity step per well. Each row = one activity step with planned/actual quantity and OMR value.
+    columns:
+      id: Record ID
+      rigcode: Project code e.g. 'NL0010'. Ref ProjectIDs.Code
+      well_id: Well numeric ID e.g. '33151'. Ref ActivityTaskPlan.Well_ID
+      code: Step code format ACTIVITYCODE-WELLID e.g. 'LCPC1000-33151' (Location Pad Construction), 'LCCC1000-33151' (Cellar)
+      pms: PMS weight fraction of this step e.g. 0.1 = contributes 10% to overall progress
+      step_type: Phase code — 'LOC' (Location), 'FLC' (Flowline Completion)
+      planned_progress: Planned completion count e.g. '1'
+      plan_percent: Planned fraction e.g. '0.1' = 10%
+      acutal_progress: Actual completion count e.g. 1.0 = fully done
+      act_percent: Actual fraction e.g. '0.1' = 10%
+      total_purpose_value: Total contract value (OMR) for this step e.g. 2900.0
+      planned_purpose_value: Planned earned value (OMR)
+      actual_purpose_value: Actual earned value (OMR)
+      Title: Activity step title e.g. 'Surveying & Setting out for Well Pad', 'Construction of Access Road'
+
+  SAP_DRILLING_SEQUENCE_History:
+    description: SAP drilling sequence records — planned start/end dates, durations, and well details per rig per drilling operation.
+    columns:
+      Work_Center: Rig ID in SAP e.g. 'SWER101', 'SWER102' (SWER = South Well Engineering Rig)
+      Operation_Short: SAP operation text format ACTCODE-WELLID e.g. 'L128-24665'
+      Activity: Drilling activity code e.g. 'L128', 'BA11', 'AF04'
+      Opr_System_status: SAP status — 'REL' (Released), 'MCNF PCNF REL' (Confirmed + Released)
+      Earl_start_date: Earliest planned start e.g. '2026-05-22'
+      EarliestEndDate: Earliest planned end e.g. '2026-06-04'
+      Station_Code: Field station — 'NIM' (Nimr), 'GSR' (Saih Rawl), 'YIB' (Yibal), 'LEK' (Lekhwair)
+      Normal_duration: Expected duration in days e.g. '13.8'
+      Norm_duratn_un: Duration unit — all 'DAY'
+      Well_Name: Well name e.g. 'AL BURJ-287', 'NIMRA_6515636_P30'. 'RIG MAINTENANCE' = maintenance period
+      Field: Oil/gas field e.g. 'AL BURJ', 'NIMR', 'AMIN', 'LEKHWAIR'
+      Responsible_asset: Region — 'SOUTH', 'GAS', 'NORTH'
+      Well_ID: PDO numeric well ID e.g. '24665', '34491'
+      Well_Location: Well location code
+      Well_Function: Well purpose — 'Oil Producer', 'Polymer Injector', 'Water Injector', 'Gas Producer'
+      Well_Category: "Development or Unspecified"
+      PCAP_Category: PDO capacity category — 'Category IV', 'Category III'
+      Move_days: Rig move days between wells e.g. '0.0'
+      PDO_Well_Type: PDO well type code e.g. 'N9423RDABW', 'N9424PIH'
+
+  task_daily:
+    description: PRIMARY operational table. Daily task execution records — what was planned vs achieved each day per crew per task. Includes employee attendance, quantities, field report links. Use ActionOn for date filtering, well_id for well filtering.
+    columns:
+      id: Record ID
+      ActionOn: Date of this daily record e.g. '2024-12-03'
+      task_code: Task code format ACTIVITYCODE-WELLID[-CREWSEQ] e.g. 'LOC1000-34398', 'FLC1010-34397-T01', 'LOC1000-34398-Rework'
+      schedule_id: Schedule version ID e.g. 181
+      project_id: Project UUID. Ref ProjectIDs.ID
+      required: Required quantity to complete e.g. 37.5 (joints), 1.0 (well)
+      planned: Quantity planned for this date
+      duration: Total task duration in days e.g. 38.0
+      remaining_duration: Remaining days e.g. 0.0 (complete), 15.0 (in progress)
+      progress: Overall task progress fraction 0.0–1.0 e.g. 0.6 = 60%
+      ready: Prerequisites met — True/False
+      completed: Task fully done — True/False
+      committed_start: Agreed start date e.g. '2026-04-23'
+      committed_end: Agreed end date e.g. '2026-04-25'
+      target_start: Baseline planned start
+      target_end: Baseline planned end
+      actual_start: Date work began
+      actual_end: Date work completed. NULL if not finished
+      startDate: Tracking window start date
+      endDate: Tracking window end date
+      crew_type: Crew type code e.g. 'CFD0803', 'FRL-0504'. Ref CrewType.Code
+      crew_code: Crew instance code format SITE-CREWTYPE-EMPLOYEEID e.g. '3522-CFD0803-', '1010-FRL-0504-102373887'
+      well_id: Well numeric ID e.g. '34398'. Ref ActivityTaskPlan.Well_ID
+      task_uom: Unit — 'well', 'no', 'Joint'
+      data_hours: Actual hours worked e.g. 3.4
+      data_qty: Actual quantity done e.g. 3.0 joints
+      data_employees: Comma-separated employee UIDs who worked e.g. '110754265,111871941-salim,100575551-guddu'
+      task_assignee: Assignee email
+      supervisor_email: Supervisor email
+      url: Autodesk ACC field report URL
+      task_data: JSON with purpose_value (OMR) and step_type e.g. '{"purpose_value":"8813.75","step_type":"FLC"}'
+      daily_data: JSON with completed flag, actual hours, employee IDs, equipment IDs, actual quantity
+      time_stamp: Last sync timestamp e.g. '2026-06-10 17:44:35 -0700'
+
+  TaskCrew:
+    description: Junction table — links tasks to assigned crew instances within a project.
+    columns:
+      ID: Record ID
+      Task: Task ID being assigned
+      Crew: Crew instance ID assigned. Ref crews.ID
+      Project_id: Project UUID. Ref ProjectIDs.ID
+
+  TaskPlanCSVImport:
+    description: Staging table for CSV-imported task plan data (from Primavera P6 or similar). Same WBS structure as ActivityTaskPlan — used during data import processing.
+    columns:
+      Name: Import batch identifier — all show 'ABC'
+      Data: JSON with purpose_value and step_type e.g. '{"purpose_value":"2899.99","step_type":"LOC"}'
+      ancestor: Ancestor row ID chain as float e.g. 143508.0 (root)
+      id: Task row ID matching ActivityTaskPlan.row_id e.g. 143804
+      duration: Duration in days e.g. '1'
+      progress: Progress fraction e.g. '0.95', '1', '0'
+      crew_uid: Crew ID e.g. '3522-LCC-0803-907960'
+      crew_type: Crew type code e.g. 'LCC-0803'
+      text: Task name e.g. 'W33151', 'Milestone', 'Location', 'Pad Construction'
+      Resume_Suspend: Well status — 'Suspend' (on hold) or 'Resume'
+      Well_ID: Well numeric ID e.g. '33151'
+      parent_WBS: Parent phase name e.g. 'Milestone', 'Pad Construction'
+
+  WBS_Master_Tracker_:
+    description: Master WBS code table with full hierarchical decomposition across all clusters, plants, and activity types.
+    columns:
+      Sr_No: Serial number
+      WBS_Code: Full WBS code format WDPRJ-PLANT-WELLID-ACTCODE-SEQ-LMPS e.g. 'OJ-3521-OFMTM-MOJ-1-L'
+      Project_Def: WBS without LMPS suffix e.g. 'OJ-3521-OFMTM-MOJ-1'
+      WD_PRJ: Well Delivery project prefix — all 'OJ' (Operations Job)
+      Plant_Code: SAP plant code e.g. '3521' (HO), '3522' (Nimr ODC)
+      Plant_Name: Plant name e.g. 'HO' (Head Office), 'Nimr ODC'
+      Cluster: Cluster/area e.g. 'HO', 'NMR' (Nimr)
+      Well_ID_Project_PO: Well ID or project code e.g. 'OFMTM', 'CMPHK'
+      Activity_code: Activity code e.g. 'MOJ' (Mixed Operations Jobs)
+      Activity: Activity description e.g. 'Mixed Operations Jobs'
+      Category: WBS category e.g. 'Location'. Can be NULL
+      LMPS: Cost split suffix — 'L' (Labour), 'M' (Material), 'P' (Plant/Equipment), 'S' (Subcontract)
+      Last_Updated_on: Last update date e.g. '29-Jan-25'
+
+  WellMonitoringReport_Latest:
+    description: Latest WMR snapshot per active well — rig assignment, coordinates, PO details, progress %, key milestone dates, SCR/MOC status. Most current well status table.
+    columns:
+      sl_no: Serial number
+      rig_no: Rig ID e.g. 'SWER101'. Ref SAP_DRILLING_SEQUENCE_History.Work_Center
+      well_location: Well location code e.g. 'AL BURJ_26_MC_OP2'. Ref SAP_DRILLING_SEQUENCE_History.Well_Location
+      well_name_after_spud: Official well name after spud e.g. 'AL BURJ-284'
+      pdo_well_id: PDO numeric well ID — MAIN well identifier e.g. '34422'. Ref across all tables
+      well_type: Installation type e.g. 'ESP' (Electric Submersible Pump), 'OP' (Open Pump)
+      northing: GPS northing coordinate (UTM) e.g. '2016211.99'
+      easting: GPS easting coordinate (UTM) e.g. '352309.00'
+      location_po_no: Location contract PO number e.g. '4501029843/10'
+      location_po_recvd_date: Date PO was received
+      last_week_cum_progress: Cumulative progress fraction at end of last week
+      cum_progress_for_this_week: Cumulative progress fraction this week. 1.0 = 100% complete
+      actual_start_date: Date construction started e.g. '2026-02-26'
+      buffer_status: Well status e.g. 'drilled' = drilling complete
+      actual_pegged_date: Date well was pegged/staked on site
+      scr_no: Site Condition Report number e.g. 'SCR 20260305'
+      scr_date: SCR date
+      moc_raised: MOC raised — 'YES'/'Yes'/NULL
+      moc_approved: MOC approved — 'YES'/'Yes'/NULL
+
+  WMR:
+    description: Main Well Monitoring Report table (historical + current). Comprehensive well status across all delivery phases — drilling, civil work, flowline, weekly progress.
+    columns:
+      sl_no: Serial number
+      rig_no: Rig ID e.g. 'SWER101'. Ref SAP_DRILLING_SEQUENCE_History.Work_Center
+      well_location: Well pad location code
+      pdo_well_id: PDO well ID — primary join key across tables
+      well_type: Well type e.g. 'ESP', 'OP'
+      cum_progress_for_this_week: Cumulative progress fraction for this week
+      actual_start_date: Actual construction start date
+
+  WellMonitoringReportOptimized:
+    description: Optimized/denormalized WMR table for faster dashboard queries. Pre-processed key fields for well delivery status reporting.
+    columns:
+      sl_no: Serial number
+      rig_no: Rig ID e.g. 'SWER101'
+      pdo_well_id: PDO well ID — main join key
+      cum_progress_for_this_week: Cumulative progress fraction 0.0–1.0
+      actual_start_date: Date work started

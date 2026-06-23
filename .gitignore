@@ -1,0 +1,65 @@
+# Environment
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+lib/
+lib64/
+wheels/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# HuggingFace model cache
+.cache/
+models/
+
+# LlamaIndex local index cache (regenerated on startup)
+storage/
+index_cache/
+
+# Large generated data files
+data/database_schema_details.txt
+
+# Temp
+*.tmp
+*.bak
+
+
+__pycache__

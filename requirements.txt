@@ -1,0 +1,30 @@
+# Web framework
+fastapi
+uvicorn[standard]
+
+# LlamaIndex core + LLM providers
+llama-index-core
+llama-index-llms-groq
+llama-index-llms-gemini
+llama-index-llms-ollama
+
+# Embeddings
+llama-index-embeddings-huggingface
+
+# Database
+sqlalchemy
+pyodbc
+
+# ML / embeddings runtime
+torch
+sentence-transformers
+
+# Configuration & environment
+pydantic-settings
+python-dotenv
+
+# Schema
+pyyaml
+
+# Sparse retrieval
+rank-bm25
