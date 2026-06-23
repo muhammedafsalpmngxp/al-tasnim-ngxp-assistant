@@ -25,8 +25,11 @@ def get_llm(settings: "Settings"):
     if provider == "gemini":
         from llama_index.llms.gemini import Gemini
 
+        model_name = settings.GEMINI_MODEL_NAME
+        if not model_name.startswith(("models/", "tunedModels/")):
+            model_name = f"models/{model_name}"
         return Gemini(
-            model_name=settings.GEMINI_MODEL_NAME,
+            model_name=model_name,
             api_key=settings.GOOGLE_API_KEY,
         )
 
