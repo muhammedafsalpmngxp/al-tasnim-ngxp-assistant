@@ -91,7 +91,7 @@ cp .env.example .env
 python db-assist.py
 ```
 
-> **Note:** First startup takes 3–4 minutes to build the in-memory embedding index for all 28 tables. Subsequent requests are fast.
+> **Note:** The first ever startup takes 3–4 minutes to build and cache the embedding index. All subsequent restarts load from cache and start in ~5 seconds. The cache auto-invalidates if `db-schema.yaml` changes, or you can force a rebuild by incrementing `INDEX_CACHE_VERSION` in `.env`.
 
 Once ready you will see:
 ```

@@ -61,11 +61,15 @@ class NL2SQLPipeline:
 
         # 5. Build hybrid retriever
         table_contexts = self._schema_loader.get_all_table_contexts()
-        table_schemas = self._schema_loader.build_table_schemas()
-        sql_database = self._schema_loader.build_sql_database()
 
         bm25 = BM25TableRetriever(table_contexts)
-        dense = DenseTableRetriever(table_schemas, sql_database, self._embed_model)
+        dense = DenseTableRetriever(
+            table_contexts=table_contexts,
+            embed_model=self._embed_model,
+            cache_dir=settings.INDEX_CACHE_DIR,
+            schema_yaml_path=settings.SCHEMA_YAML_PATH,
+            cache_version=settings.INDEX_CACHE_VERSION,
+        )
         self._retriever = HybridTableRetriever(bm25, dense, settings.TABLE_TOP_K)
         logger.info("Hybrid retriever ready (top_k=%d)", settings.TABLE_TOP_K)
 

@@ -1,17 +1,14 @@
 """
-schema_loader.py — Loads the YAML schema and builds LlamaIndex schema objects.
+schema_loader.py — Loads the YAML schema and builds table context strings.
 """
 from __future__ import annotations
 
 import yaml
 from typing import Any
 
-from llama_index.core import SQLDatabase
-from llama_index.core.objects import SQLTableSchema
-
 
 class SchemaLoader:
-    """Loads table metadata from a YAML file and provides helpers for LlamaIndex."""
+    """Loads table metadata from a YAML file and provides context strings for retrieval."""
 
     def __init__(self, yaml_path: str, db_engine: Any) -> None:
         self._yaml_path = yaml_path
@@ -62,21 +59,3 @@ class SchemaLoader:
     def get_all_table_contexts(self) -> dict[str, str]:
         """Return {table_name: context_string} for every table in the YAML."""
         return {name: self.get_table_context(name) for name in self.get_table_names()}
-
-    # ------------------------------------------------------------------
-    # LlamaIndex objects
-    # ------------------------------------------------------------------
-
-    def build_sql_database(self) -> SQLDatabase:
-        """Wrap the SQLAlchemy engine in a LlamaIndex SQLDatabase (only YAML tables)."""
-        return SQLDatabase(self._db_engine, include_tables=self.get_table_names())
-
-    def build_table_schemas(self) -> list[SQLTableSchema]:
-        """Build a SQLTableSchema for each table defined in the YAML."""
-        schemas: list[SQLTableSchema] = []
-        for table_name in self.get_table_names():
-            context_str = self.get_table_context(table_name)
-            schemas.append(
-                SQLTableSchema(table_name=table_name, context_str=context_str)
-            )
-        return schemas

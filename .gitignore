@@ -53,6 +53,7 @@ models/
 # LlamaIndex local index cache (regenerated on startup)
 storage/
 index_cache/
+index_cache
 
 # Large generated data files
 data/database_schema_details.txt

@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # Schema
     SCHEMA_YAML_PATH: str = "data/db-schema.yaml"
 
+    # Index cache — reduces startup from ~3.5 min to ~5 sec after first run
+    # Increment INDEX_CACHE_VERSION to force a full rebuild without changing the schema
+    INDEX_CACHE_DIR: str = "index_cache"
+    INDEX_CACHE_VERSION: str = "1.0.0"
+
     # Retrieval
     TABLE_TOP_K: int = 5
 
