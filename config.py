@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str = ""
     GEMINI_MODEL_NAME: str = "gemini-2.5-flash"
 
+    # OpenAI
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL_NAME: str = "gpt-4o-mini"
+    OPENAI_TEMPERATURE: float = 0.0
+
     # Ollama / local
     LLM_MODEL: str = "qwen2.5:7b"
     OLLAMA_BASE_URL: str = "http://localhost:11434"

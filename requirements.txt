@@ -28,3 +28,6 @@ pyyaml
 
 # Sparse retrieval
 rank-bm25
+
+
+llama-index-llms-openai

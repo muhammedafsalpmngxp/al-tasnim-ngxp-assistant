@@ -28,6 +28,15 @@ def get_llm(settings):
             api_key=settings.GOOGLE_API_KEY,
         )
 
+    if provider == "openai":
+        from llama_index.llms.openai import OpenAI
+
+        return OpenAI(
+            model=settings.OPENAI_MODEL_NAME,
+            api_key=settings.OPENAI_API_KEY,
+            temperature=settings.OPENAI_TEMPERATURE,
+        )
+
     if provider == "local":
         from llama_index.llms.ollama import Ollama
 
@@ -39,7 +48,7 @@ def get_llm(settings):
 
     raise ValueError(
         f"Unknown LLM_PROVIDER '{settings.LLM_PROVIDER}'. "
-        "Valid options: 'groq', 'gemini', 'local'."
+        "Valid options: 'groq', 'gemini', 'openai', 'local'."
     )
 
 
