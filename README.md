@@ -170,7 +170,13 @@ Set `LLM_PROVIDER` in `.env` to switch providers:
 |---|---|---|
 | Groq Cloud | `groq` | `GROQ_API_KEY` |
 | Google Gemini | `gemini` | `GOOGLE_API_KEY` |
+| OpenAI | `openai` | `OPENAI_API_KEY` |
 | Ollama (local) | `local` | None (Ollama must be running) |
+
+Install the OpenAI integration package if using `LLM_PROVIDER=openai`:
+```bash
+pip install llama-index-llms-openai
+```
 
 ---
 
