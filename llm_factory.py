@@ -3,13 +3,8 @@ llm_factory.py — Factory functions for LLM and embedding model creation.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from config import Settings
-
-
-def get_llm(settings: "Settings"):
+def get_llm(settings):
     """Return the appropriate LLM instance based on settings.LLM_PROVIDER."""
     provider = settings.LLM_PROVIDER.lower()
 
@@ -48,7 +43,7 @@ def get_llm(settings: "Settings"):
     )
 
 
-def get_embed_model(settings: "Settings"):
+def get_embed_model(settings):
     """Return a HuggingFaceEmbedding instance configured from settings."""
     from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 

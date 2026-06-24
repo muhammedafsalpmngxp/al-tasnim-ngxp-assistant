@@ -37,8 +37,6 @@ class Settings(BaseSettings):
 
     # Retrieval
     TABLE_TOP_K: int = 5
-    BM25_WEIGHT: float = 0.4
-    DENSE_WEIGHT: float = 0.6
 
     # Pipeline
     MAX_SQL_RETRIES: int = 2
