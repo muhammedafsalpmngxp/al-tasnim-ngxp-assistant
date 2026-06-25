@@ -113,41 +113,84 @@ class NL2SQLPipeline:
 
         schema_context = self._build_schema_context(tables_used)
 
-        # Generate SQL (with retry on execution failure)
+        # Generate SQL (with retry on execution failure, safety failure, or zero rows)
         sql: str | None = None
         rows: list[dict] | None = None
         last_error: str = ""
+        escalate_to_agent: bool = False
 
         for attempt in range(1 + self._settings.MAX_SQL_RETRIES):
             if attempt == 0:
                 sql = self._generate_sql(question, schema_context)
             else:
-                logger.warning("SQL retry %d after error: %s", attempt, last_error)
+                logger.warning("SQL retry %d: %s", attempt, last_error[:120])
                 sql = self._retry_sql(question, sql or "", last_error, schema_context)
 
             logger.info("Generated SQL (attempt %d): %s", attempt + 1, sql)
 
-            # Safety check
+            # Detect if LLM returned explanation text instead of a SQL query
+            if not sql or not sql.strip().upper().startswith("SELECT"):
+                if attempt < self._settings.MAX_SQL_RETRIES:
+                    last_error = (
+                        "NO_SQL_GENERATED: You did not produce a SELECT statement. "
+                        "You must output a valid SQL SELECT query. "
+                        "If the schema shown does not have the right table, pick the closest "
+                        "available table. For employee/daily work data use task_daily "
+                        "(columns: well_id, ActionOn, data_employees, task_code, crew_type). "
+                        "Always output SQL, never just an explanation."
+                    )
+                    logger.warning("SQL attempt %d produced no valid SQL — retrying", attempt + 1)
+                    continue
+                else:
+                    logger.warning("All retries exhausted with no valid SQL — escalating to agent")
+                    escalate_to_agent = True
+                    break
+
+            # Safety check — retry instead of returning error to user
             is_safe, reason = validate_sql(sql)
             if not is_safe:
-                return _err(
-                    f"The generated query was blocked for safety reasons: {reason}. "
-                    "Only SELECT statements are permitted."
-                )
+                if attempt < self._settings.MAX_SQL_RETRIES:
+                    last_error = (
+                        f"INVALID_SQL: {reason}. "
+                        "You must generate a valid SELECT statement. "
+                        "Do not include explanatory text — output only the SQL query."
+                    )
+                    logger.warning("SQL attempt %d failed safety check — retrying: %s", attempt + 1, reason)
+                    continue
+                else:
+                    logger.warning("All retries exhausted with unsafe SQL — escalating to agent")
+                    escalate_to_agent = True
+                    break
 
             # Execute
             try:
                 rows = self._execute_sql(sql)
-                break  # success
+                if rows:
+                    break  # success with data
+                # Zero rows — retry with a simpler query unless last attempt
+                if attempt < self._settings.MAX_SQL_RETRIES:
+                    last_error = (
+                        "ZERO_ROWS: The query executed successfully but returned no data. "
+                        "Possible causes: (1) JOINs too strict — use LEFT JOIN instead of INNER JOIN, "
+                        "(2) WHERE filter too narrow — relax or use LIKE, "
+                        "(3) Wrong table — try a different table from the schema. "
+                        "For employee/daily work queries use task_daily (well_id, ActionOn, data_employees). "
+                        "For well details use WellMonitoringReport_Latest."
+                    )
+                    logger.warning("SQL attempt %d returned 0 rows — retrying", attempt + 1)
+                else:
+                    break  # last attempt, accept 0 rows
             except Exception as exc:
                 last_error = str(exc)
                 logger.warning("SQL execution failed (attempt %d): %s", attempt + 1, last_error)
                 if attempt >= self._settings.MAX_SQL_RETRIES:
-                    return _err(
-                        f"The query could not be executed after "
-                        f"{self._settings.MAX_SQL_RETRIES + 1} attempts. "
-                        f"Last error: {last_error}"
-                    )
+                    logger.warning("All retries exhausted with execution error — escalating to agent")
+                    escalate_to_agent = True
+                    break
+
+        # Signal caller to escalate to complex agent
+        if escalate_to_agent:
+            return _escalate()
 
         # Format response
         answer = self._format_response(question, sql or "", rows or [])
@@ -283,3 +326,8 @@ def _ok(answer: str) -> dict[str, Any]:
 
 def _err(message: str) -> dict[str, Any]:
     return {"answer": message, "sql": None, "data": None, "tables_used": None}
+
+
+def _escalate() -> dict[str, Any]:
+    """Signal to the caller (db-assist.py) to retry this question via the complex agent."""
+    return {"answer": "__ESCALATE_TO_AGENT__", "sql": None, "data": None, "tables_used": None}

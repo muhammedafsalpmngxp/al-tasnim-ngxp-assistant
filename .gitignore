@@ -64,3 +64,6 @@ data/database_schema_details.txt
 
 
 __pycache__
+
+
+db-data-details.py

@@ -1,180 +1,232 @@
-import logging
+"""
+agent/tools.py — FunctionTool wrappers for the FunctionAgent.
+Tools: execute_sql, get_schema, compute_stats.
+"""
 import json
+import logging
 import re
 import time
+
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
 
-def execute_sql(sql: str, engine, row_cap: int = 20, tracker: dict = None) -> str:
+# ---------------------------------------------------------------------------
+# Core tool functions
+# ---------------------------------------------------------------------------
+
+def execute_sql(sql: str, engine, row_cap: int = 200, tracker: dict = None) -> str:
     """Execute a SELECT query and return results as JSON."""
     start_time = time.time()
-
-    logger.info(f"[TOOL:sql] Executing: {sql[:100]}...")
+    logger.info("[TOOL:sql] Executing: %s...", sql[:120])
 
     try:
-        if not sql.strip().upper().startswith("SELECT"):
+        stripped = sql.strip()
+
+        if not stripped.upper().startswith("SELECT"):
             return json.dumps({"error": "Only SELECT queries are allowed"})
 
-        if not re.search(r"\bTOP\s+\d+\b", sql, re.IGNORECASE):
-            sql = re.sub(
+        # Inject TOP N if not already present (SQL Server uses TOP, not LIMIT)
+        if not re.search(r"\bTOP\s+\d+\b", stripped, re.IGNORECASE):
+            stripped = re.sub(
                 r"\bSELECT\b",
                 f"SELECT TOP {row_cap}",
-                sql,
+                stripped,
                 count=1,
                 flags=re.IGNORECASE,
             )
 
+        # Remove LIMIT clause if agent accidentally used it (MySQL/Postgres habit)
+        stripped = re.sub(r"\bLIMIT\s+\d+\b", "", stripped, flags=re.IGNORECASE).strip()
+
         with engine.connect() as conn:
-            result = conn.execute(text(sql))
-            col_keys = list(result.keys())
+            result = conn.execute(text(stripped))
+            col_keys = list(result.keys())   # must read keys BEFORE fetchall
             rows = result.fetchall()
 
-        result_data = []
-        for row in rows:
-            row_dict = {}
-            for i, key in enumerate(col_keys):
-                row_dict[key] = row[i]
-            result_data.append(row_dict)
+        result_data = [
+            {col_keys[i]: row[i] for i in range(len(col_keys))}
+            for row in rows
+        ]
 
-        response = {
-            "rows": result_data,
-            "row_count": len(result_data),
-            "columns": col_keys,
-        }
-
-        # Record the last successful SQL + data for the API response
+        # Update per-request tracker
         if tracker is not None:
-            tracker["sql"] = sql
+            tracker["sql"] = stripped
             tracker["data"] = result_data
-            # Accumulate unique table names from SQL
-            tables = re.findall(r"\bFROM\s+\[?(\w+)\]?|\bJOIN\s+\[?(\w+)\]?", sql, re.IGNORECASE)
-            for t1, t2 in tables:
+            matches = re.findall(
+                r"\bFROM\s+\[?(\w+)\]?|\bJOIN\s+\[?(\w+)\]?",
+                stripped,
+                re.IGNORECASE,
+            )
+            for t1, t2 in matches:
                 name = t1 or t2
                 if name and name not in tracker["tables_used"]:
                     tracker["tables_used"].append(name)
 
-        logger.info(
-            f"[TOOL:sql] Completed: {len(result_data)} rows in "
-            f"{(time.time() - start_time) * 1000:.0f}ms"
+        elapsed = (time.time() - start_time) * 1000
+        logger.info("[TOOL:sql] %d rows in %.0fms", len(result_data), elapsed)
+
+        return json.dumps(
+            {"rows": result_data, "row_count": len(result_data), "columns": col_keys},
+            default=str,
         )
-        return json.dumps(response, default=str)
 
     except Exception as e:
         error_msg = str(e)
-        logger.warning(f"[TOOL:sql] Failed: {error_msg}")
+        logger.warning("[TOOL:sql] Failed: %s", error_msg)
 
+        # Helpful error for invalid table name
         match = re.search(r"Invalid object name '([^']+)'", error_msg)
         if match:
-            table = match.group(1)
-            return json.dumps(
-                {
-                    "error": f"Table '{table}' not found",
-                    "suggestion": "Use get_schema to see available tables",
-                }
-            )
+            return json.dumps({
+                "error": f"Table '{match.group(1)}' not found in database",
+                "suggestion": "Call get_schema('') to list all available tables, then retry with the correct name",
+            })
 
-        return json.dumps(
-            {"error": error_msg, "suggestion": "Check table/column names"}
-        )
+        # Hint for LIMIT syntax error (SQL Server doesn't support LIMIT)
+        if "LIMIT" in error_msg.upper() or "incorrect syntax" in error_msg.lower():
+            return json.dumps({
+                "error": f"SQL syntax error: {error_msg}",
+                "suggestion": "Use TOP N instead of LIMIT. Example: SELECT TOP 100 * FROM Table WITH (NOLOCK)",
+            })
+
+        return json.dumps({
+            "error": error_msg,
+            "suggestion": "Check table/column names using get_schema. Use SQL Server syntax (TOP, NOLOCK, TRY_CAST, GETDATE)",
+        })
 
 
 def get_schema(table_name: str, schema_loader) -> str:
-    """Get table schema details from YAML."""
+    """Get table schema details from YAML. Pass empty string to list all tables."""
     start_time = time.time()
-
-    logger.info(f"[TOOL:schema] Getting: {table_name or 'ALL_TABLES'}")
+    logger.info("[TOOL:schema] Getting: '%s'", table_name or "ALL_TABLES")
 
     try:
         contexts = schema_loader.get_all_table_contexts()
 
-        if table_name:
-            if table_name in contexts:
-                result = {"table": table_name, "schema": contexts[table_name]}
+        if table_name and table_name.strip():
+            name = table_name.strip()
+            if name in contexts:
+                result = {"table": name, "schema": contexts[name]}
             else:
-                available = list(contexts.keys())[:10]
-                return json.dumps(
-                    {
-                        "error": f"Table '{table_name}' not found",
-                        "available_tables": available,
-                    }
-                )
+                # Fuzzy match — find tables with similar names
+                available = list(contexts.keys())
+                similar = [t for t in available if name.lower() in t.lower()]
+                result = {
+                    "error": f"Table '{name}' not found",
+                    "similar_tables": similar[:5],
+                    "all_tables": available,
+                }
         else:
-            result = {"tables": list(contexts.keys()), "table_count": len(contexts)}
+            result = {
+                "available_tables": list(contexts.keys()),
+                "table_count": len(contexts),
+                "usage": "Call get_schema('TableName') to see columns for a specific table",
+            }
 
-        logger.info(
-            f"[TOOL:schema] Completed in {(time.time() - start_time) * 1000:.0f}ms"
-        )
+        elapsed = (time.time() - start_time) * 1000
+        logger.info("[TOOL:schema] Completed in %.0fms", elapsed)
         return json.dumps(result, default=str)
 
     except Exception as e:
-        logger.error(f"[TOOL:schema] Failed: {e}")
-        return json.dumps({"error": f"Failed to get schema: {e}"})
+        logger.error("[TOOL:schema] Failed: %s", e)
+        return json.dumps({"error": f"Schema lookup failed: {e}"})
 
 
 def compute_stats(data_json: str, operation: str, column: str = None) -> str:
-    """Calculate statistics on data."""
+    """
+    Calculate statistics on data returned by execute_sql.
+    operation: sum | avg | average | min | max | count
+    column: column name to operate on (auto-detects first numeric if omitted)
+    """
     start_time = time.time()
-
-    logger.info(f"[TOOL:stats] Computing {operation} on {column or 'first numeric'}")
+    logger.info("[TOOL:stats] %s on column '%s'", operation, column or "auto")
 
     try:
         data = json.loads(data_json)
         rows = data.get("rows", []) if isinstance(data, dict) else data
 
         if not rows:
-            return json.dumps({"error": "No data to compute statistics on"})
+            return json.dumps({"error": "No data to compute statistics on", "result": None})
 
+        # Auto-detect numeric column
         if not column:
             for key in rows[0].keys():
                 try:
-                    float(rows[0][key])
+                    float(str(rows[0][key]).replace(",", ""))
                     column = key
                     break
                 except (ValueError, TypeError):
                     continue
 
         if not column:
-            return json.dumps({"error": "No numeric column found"})
+            return json.dumps({"error": "No numeric column found in data", "columns": list(rows[0].keys())})
 
         values = []
         for row in rows:
             try:
-                values.append(float(row.get(column, 0)))
+                v = str(row.get(column, "")).replace(",", "")
+                values.append(float(v))
             except (ValueError, TypeError):
                 continue
 
         if not values:
-            return json.dumps({"error": f"No valid numeric values in '{column}'"})
+            return json.dumps({"error": f"No valid numeric values in column '{column}'"})
+
+        op = operation.lower().strip()
+        total = sum(values)
+        avg = total / len(values)
 
         result = {
             "column": column,
+            "operation": op,
             "count": len(values),
-            "sum": sum(values),
-            "average": sum(values) / len(values),
-            "min": min(values),
-            "max": max(values),
+            "sum": round(total, 4),
+            "average": round(avg, 4),
+            "min": round(min(values), 4),
+            "max": round(max(values), 4),
         }
 
-        logger.info(
-            f"[TOOL:stats] Completed: count={len(values)}, avg={result['average']:.2f} "
-            f"in {(time.time() - start_time) * 1000:.0f}ms"
-        )
+        if op in ("sum",):
+            result["result"] = result["sum"]
+        elif op in ("avg", "average", "mean"):
+            result["result"] = result["average"]
+        elif op == "min":
+            result["result"] = result["min"]
+        elif op == "max":
+            result["result"] = result["max"]
+        elif op == "count":
+            result["result"] = result["count"]
+        else:
+            result["result"] = result["sum"]
+
+        elapsed = (time.time() - start_time) * 1000
+        logger.info("[TOOL:stats] count=%d, avg=%.2f in %.0fms", len(values), avg, elapsed)
         return json.dumps(result, default=str)
 
     except Exception as e:
-        logger.error(f"[TOOL:stats] Failed: {e}")
+        logger.error("[TOOL:stats] Failed: %s", e)
         return json.dumps({"error": f"Stats calculation failed: {e}"})
 
 
-def create_sql_tool(engine, row_cap: int = 20, tracker: dict = None):
+# ---------------------------------------------------------------------------
+# FunctionTool factory functions
+# ---------------------------------------------------------------------------
+
+def create_sql_tool(engine, row_cap: int = 200, tracker: dict = None):
     from llama_index.core.tools import FunctionTool
 
     return FunctionTool.from_defaults(
         fn=lambda sql: execute_sql(sql, engine, row_cap, tracker),
         name="execute_sql",
-        description=f"Execute a SELECT query against the database. Returns rows as JSON. Max {row_cap} rows returned.",
+        description=(
+            f"Execute a SELECT query against the Microsoft SQL Server database. "
+            f"Returns rows as JSON (max {row_cap} rows). "
+            "IMPORTANT SQL Server rules: use TOP N not LIMIT, add WITH (NOLOCK) after every table, "
+            "use TRY_CAST(col AS FLOAT) for text-to-number conversion, use GETDATE() not NOW(). "
+            "On error, check the suggestion field and retry with corrected SQL."
+        ),
     )
 
 
@@ -184,7 +236,12 @@ def create_schema_tool(schema_loader):
     return FunctionTool.from_defaults(
         fn=lambda table_name: get_schema(table_name, schema_loader),
         name="get_schema",
-        description="Get column names and descriptions for a table. Pass empty string to list all available tables.",
+        description=(
+            "Get column names and descriptions for a database table. "
+            "Pass an empty string '' to list ALL available tables. "
+            "Pass a table name (e.g. 'ActivityTaskPlan') to see its columns. "
+            "Always call this before writing SQL if you are unsure of column names."
+        ),
     )
 
 
@@ -194,5 +251,10 @@ def create_stats_tool():
     return FunctionTool.from_defaults(
         fn=compute_stats,
         name="compute_stats",
-        description="Calculate sum, average, count, min, max on a JSON dataset returned by execute_sql.",
+        description=(
+            "Calculate sum, average, min, max, or count on a JSON dataset from execute_sql. "
+            "Parameters: data_json (the full JSON string from execute_sql), "
+            "operation ('sum'|'avg'|'min'|'max'|'count'), "
+            "column (column name — optional, auto-detects first numeric column if omitted)."
+        ),
     )
