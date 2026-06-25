@@ -5,10 +5,10 @@ from pathlib import Path
 # ==========================
 # DATABASE CONFIG
 # ==========================
-SERVER = "20.98.112.250"
-DATABASE = "AppMasterDB_Local"
-USERNAME = "SA"
-PASSWORD = "Complex@123"
+SERVER = ""
+DATABASE = ""
+USERNAME = ""
+PASSWORD = ""
 
 TABLES = [
     "ActivityCodesNorms",
