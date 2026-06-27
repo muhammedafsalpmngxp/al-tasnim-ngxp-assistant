@@ -108,7 +108,7 @@ _INIT_WAIT_SEC = int(os.getenv("PIPELINE_INIT_WAIT_SEC", "1800"))  # 30 min defa
 @register_tool
 @tool
 async def query_database(question: str) -> str:
-    """Query live operational database records: well IDs, rig assignments, status, progress, activity codes, station codes, field names, crew details, dates, counts, and any structured operational data."""
+    """Query the live database for any data question — records, counts, summaries, lookups, filters, or aggregations."""
     logger.info("[DB_TOOL] CALL question=%r", question)
 
     # If still initializing, wait patiently (separate from DB_TOOL_TIMEOUT)
